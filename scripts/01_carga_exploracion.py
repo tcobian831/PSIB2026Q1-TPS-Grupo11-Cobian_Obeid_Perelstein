@@ -38,7 +38,7 @@ from collections import defaultdict
 # =============================================================================
 
 # Ruta a la carpeta que contiene los .tar.gz de cada sujeto
-DATA_DIR = Path("C:\Users\Fran\Desktop\TPS PSIB\TPS\PSIB2026Q1-TPS-Grupo11-Cobian_Obeid_Perelstein\data")
+DATA_DIR = Path("../data/eeg_full")
 
 # Frecuencia de muestreo del dataset (256 Hz)
 FS = 256  # Hz
@@ -182,17 +182,6 @@ def cargar_sujeto_tar(ruta_tar: Path) -> list[pd.DataFrame]:
 
 
 def cargar_dataset(data_dir: Path, max_sujetos: int = None) -> pd.DataFrame:
-    """
-    Carga el dataset completo desde la carpeta data_dir.
-    Itera sobre todos los .tar.gz de sujetos.
-
-    Args:
-        data_dir:     Ruta a la carpeta con los .tar.gz de cada sujeto.
-        max_sujetos:  Si se especifica, limita la cantidad de sujetos cargados
-                      (útil para pruebas rápidas).
-
-    Retorna un DataFrame combinado con todos los trials.
-    """
     archivos_tar = sorted(data_dir.glob("*.tar.gz"))
 
     if not archivos_tar:
@@ -207,20 +196,43 @@ def cargar_dataset(data_dir: Path, max_sujetos: int = None) -> pd.DataFrame:
         archivos_tar = archivos_tar[:max_sujetos]
         print(f"Cargando solo los primeros {max_sujetos} sujetos (modo prueba).")
 
-    todos_trials = []
-    for i, ruta_tar in enumerate(archivos_tar):
-        grupo = identificar_grupo(ruta_tar.name)
-        print(f"  [{i+1:3d}/{len(archivos_tar)}] {ruta_tar.name}  ({grupo})")
-        trials = cargar_sujeto_tar(ruta_tar)
-        todos_trials.extend(trials)
+    # Guardamos por bloques para no saturar la RAM
+    BLOQUE = 20
+    parquet_parciales = []
 
-    if not todos_trials:
-        raise ValueError("No se cargó ningún trial válido. Revisá el formato de los archivos.")
+    for bloque_i, inicio in enumerate(range(0, len(archivos_tar), BLOQUE)):
+        grupo_archivos = archivos_tar[inicio:inicio + BLOQUE]
+        todos_trials = []
 
-    print(f"\nCombinando {len(todos_trials)} trials válidos...")
-    df = pd.concat(todos_trials, ignore_index=True)
+        for i, ruta_tar in enumerate(grupo_archivos):
+            idx_global = inicio + i + 1
+            grupo = identificar_grupo(ruta_tar.name)
+            print(f"  [{idx_global:3d}/{len(archivos_tar)}] {ruta_tar.name}  ({grupo})")
+            trials = cargar_sujeto_tar(ruta_tar)
+            todos_trials.extend(trials)
+
+        if not todos_trials:
+            continue
+
+        df_bloque = pd.concat(todos_trials, ignore_index=True)
+        nombre_parcial = f"eeg_parcial_{bloque_i:02d}.parquet"
+        df_bloque.to_parquet(nombre_parcial, index=False)
+        parquet_parciales.append(nombre_parcial)
+        print(f"  -> Bloque {bloque_i} guardado ({len(df_bloque):,} filas)")
+        del df_bloque, todos_trials
+
+    # Combinar todos los parciales
+    print("\nCombinando bloques parciales...")
+    df = pd.concat(
+        [pd.read_parquet(p) for p in parquet_parciales],
+        ignore_index=True
+    )
+
+    # Limpiar parciales
+    for p in parquet_parciales:
+        Path(p).unlink()
+
     return df
-
 
 # =============================================================================
 # FUNCIONES DE EXPLORACIÓN
@@ -366,7 +378,7 @@ if __name__ == "__main__":
 
     # OPCIÓN B: Carga de prueba (primeros N sujetos, más rápido)
     # Útil para verificar que el parsing funciona antes de cargar todo.
-    df = cargar_dataset(DATA_DIR, max_sujetos=10)
+    df = cargar_dataset(DATA_DIR)
     # -------------------------------------------------------------------------
 
     # Resumen del dataset

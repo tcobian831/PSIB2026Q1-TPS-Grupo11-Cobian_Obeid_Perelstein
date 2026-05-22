@@ -224,3 +224,11 @@ data/
 # Outputs generados por los scripts
 outputs/*.parquet
 outputs/*.png
+
+
+# Archivos generados por los scripts
+scripts/*.parquet
+scripts/*.png
+outputs/*.parquet
+outputs/*.png
+*.parquet
