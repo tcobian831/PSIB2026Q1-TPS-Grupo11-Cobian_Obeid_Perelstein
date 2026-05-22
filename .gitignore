@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# Dataset EEG
+data/
+
+# Outputs generados por los scripts
+outputs/*.parquet
+outputs/*.png
