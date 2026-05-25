@@ -189,7 +189,7 @@ def graficar_grand_average(grand: pd.DataFrame):
                 ax.legend(fontsize=8, loc="upper right")
 
     plt.tight_layout()
-    plt.savefig("figura_grand_average.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_grand_average.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada como 'figura_grand_average.png'")
 
@@ -251,7 +251,7 @@ def graficar_PE_por_canal(grand: pd.DataFrame):
                 ax.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.savefig("figura_PE_por_condicion.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_PE_por_condicion.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada como 'figura_PE_por_condicion.png'")
 

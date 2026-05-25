@@ -120,7 +120,7 @@ def graficar_señales_tiempo(df: pd.DataFrame):
                 ax.set_xlabel("Tiempo (ms)", fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("figura_exploracion_tiempo.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_exploracion_tiempo.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_exploracion_tiempo.png'")
 
@@ -185,7 +185,7 @@ def graficar_señales_multicanal(df: pd.DataFrame):
                 ax.set_xlabel("Tiempo (ms)", fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("figura_exploracion_multicanal.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_exploracion_multicanal.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_exploracion_multicanal.png'")
 
@@ -320,7 +320,7 @@ def graficar_psd(df: pd.DataFrame):
             ax.legend(fontsize=8, loc="upper right")
 
     plt.tight_layout()
-    plt.savefig("figura_exploracion_psd.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_exploracion_psd.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_exploracion_psd.png'")
 
@@ -381,7 +381,7 @@ def graficar_distribucion_amplitudes(df: pd.DataFrame):
             ax.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.savefig("figura_exploracion_artefactos.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_exploracion_artefactos.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_exploracion_artefactos.png'")
 

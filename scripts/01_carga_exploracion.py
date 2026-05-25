@@ -319,7 +319,7 @@ def graficar_trial_ejemplo(df: pd.DataFrame, canal: str = "P8"):
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("figura_trial_ejemplo.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_trial_ejemplo.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("Figura guardada como 'figura_trial_ejemplo.png'")
 
@@ -355,7 +355,7 @@ def graficar_distribucion_trials(df: pd.DataFrame):
     ax.legend()
     ax.grid(axis="y", alpha=0.3)
     plt.tight_layout()
-    plt.savefig("figura_distribucion_trials.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_distribucion_trials.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("Figura guardada como 'figura_distribucion_trials.png'")
 

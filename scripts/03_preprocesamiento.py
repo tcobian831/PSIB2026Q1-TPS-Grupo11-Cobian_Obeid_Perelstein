@@ -331,7 +331,7 @@ if __name__ == "__main__":
     axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("figura_preprocesamiento.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_preprocesamiento.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada como 'figura_preprocesamiento.png'")
 
