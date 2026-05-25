@@ -4,7 +4,7 @@ TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
 Grupo 11: Cobián, Obeid, Perelstein
 
-Script 02: Preprocesamiento de Señales EEG
+Script 03: Preprocesamiento de Señales EEG
 ==============================================================================
 
 Pasos:
@@ -18,7 +18,7 @@ Salida:   eeg_data_preprocesado.parquet
 
 Uso:
     Correr desde la carpeta scripts/
-    python 02_preprocesamiento.py
+    python 03_preprocesamiento.py
 ==============================================================================
 """
 
@@ -340,4 +340,4 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     df_proc.to_parquet(SALIDA, index=False)
     print(f"\nDatos preprocesados guardados en '{SALIDA}'")
-    print("\n[OK] Script 02 finalizado.")
+    print("\n[OK] Script 03 finalizado.")

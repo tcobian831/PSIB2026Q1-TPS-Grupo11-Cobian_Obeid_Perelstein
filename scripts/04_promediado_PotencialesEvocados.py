@@ -4,7 +4,7 @@ TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
 Grupo 11: Cobián, Obeid, Perelstein
 
-Script 03: Promediado y Cálculo del Potencial Evocado
+Script 04: Promediado y Cálculo del Potencial Evocado
 ==============================================================================
 
 Pasos:
@@ -19,7 +19,7 @@ Salida:   eeg_PE_individual.parquet     (PE por sujeto)
 
 Uso:
     Correr desde la carpeta scripts/
-    python 03_PE_promediado.py
+    python 04_promediado_PotencialesEvocados.py
 ==============================================================================
 """
 
@@ -353,4 +353,4 @@ if __name__ == "__main__":
     graficar_grand_average(grand)
     graficar_PE_por_canal(grand)
 
-    print("\n[OK] Script 03 finalizado.")
+    print("\n[OK] Script 04 finalizado.")
