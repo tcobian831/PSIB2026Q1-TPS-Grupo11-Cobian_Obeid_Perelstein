@@ -67,7 +67,7 @@ T_INI_MS, T_FIN_MS = 220, 260
 M_INI = int(T_INI_MS / 1000 * FS)
 M_FIN = int(T_FIN_MS / 1000 * FS)
 
-ENTRADA_CRUDO   = Path("eeg_data_cargado.parquet")
+ENTRADA_CRUDO   = Path("../outputs/eeg_data_cargado.parquet")
 ENTRADA_INTERES = Path("../outputs/tabla_estadistica_v2.csv")
 SALIDA_C240     = Path("../outputs/eeg_c240_control_chans_v2.csv")
 SALIDA_TABLA    = Path("../outputs/tabla_especificidad_regional_v2.csv")

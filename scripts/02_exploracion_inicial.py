@@ -472,4 +472,20 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     imprimir_conclusiones(df_canales)
 
+    # -------------------------------------------------------------------------
+    # Análisis de trials por sujeto y condición
+    # -------------------------------------------------------------------------
+    print("\n--- Cantidad de trials por sujeto ---")
+
+    resumen_trials = (
+        df_canales[df_canales["canal"] == "P8"]
+        .groupby(["grupo", "condicion", "sujeto"])["trial_num"]
+        .nunique()
+        .reset_index()
+        .groupby(["grupo", "condicion"])["trial_num"]
+        .agg(media="mean", minimo="min", maximo="max")
+        .round(1)
+    )
+    print(resumen_trials)
+
     print("\n[OK] Script 02 finalizado.")
