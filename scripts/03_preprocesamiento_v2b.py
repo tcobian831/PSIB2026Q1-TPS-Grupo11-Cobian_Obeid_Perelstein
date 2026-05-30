@@ -44,8 +44,8 @@ CANALES_INTERES     = ["P8", "PO8", "T8", "TP8"]
 # Diferencia con v2: agregamos S2 match
 CONDICIONES_INTERES = ["S1 obj", "S2 nomatch", "S2 match"]
 
-ENTRADA = Path("eeg_data_cargado.parquet")
-SALIDA  = Path("eeg_data_preprocesado_v2b.parquet")
+ENTRADA = Path("../outputs/eeg_data_cargado.parquet")
+SALIDA  = Path("../outputs/eeg_data_preprocesado_v2b.parquet")
 
 
 def disenar_filtro_butterworth(f_low, f_high, fs, orden):

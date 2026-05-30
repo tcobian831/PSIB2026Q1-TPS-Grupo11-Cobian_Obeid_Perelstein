@@ -40,9 +40,9 @@ CONDICIONES     = ["S1 obj", "S2 nomatch"]
 T_C240_INI = 220
 T_C240_FIN = 260
 
-ENTRADA      = Path("eeg_data_preprocesado_v2.parquet")
-SALIDA_IND   = Path("eeg_PE_individual_v2.parquet")
-SALIDA_GRAND = Path("eeg_PE_grandaverage_v2.parquet")
+ENTRADA      = Path("../outputs/eeg_data_preprocesado_v2.parquet")
+SALIDA_IND   = Path("../outputs/eeg_PE_individual_v2.parquet")
+SALIDA_GRAND = Path("../outputs/eeg_PE_grandaverage_v2.parquet")
 
 # =============================================================================
 # FUNCIONES

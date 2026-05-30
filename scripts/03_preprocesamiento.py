@@ -50,8 +50,8 @@ CANALES_INTERES = ["P8", "PO8", "T8", "TP8"]
 CONDICIONES_INTERES = ["S1 obj", "S2 nomatch"]
 
 # Rutas
-ENTRADA  = Path("eeg_data_cargado.parquet")
-SALIDA   = Path("eeg_data_preprocesado.parquet")
+ENTRADA  = Path("../outputs/eeg_data_cargado.parquet")
+SALIDA   = Path("../outputs/eeg_data_preprocesado.parquet")
 
 # =============================================================================
 # FUNCIONES

@@ -49,7 +49,7 @@ CANALES_INTERES = ["P8", "PO8", "T8", "TP8"]
 # Cuántos trials de ejemplo mostrar por grupo en el dominio del tiempo
 N_TRIALS_EJEMPLO = 5
 
-ENTRADA = Path("eeg_data_cargado.parquet")
+ENTRADA = Path("../outputs/eeg_data_cargado.parquet") 
 
 # =============================================================================
 # FUNCIONES — DOMINIO DEL TIEMPO
