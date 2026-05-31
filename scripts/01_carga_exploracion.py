@@ -399,7 +399,13 @@ if __name__ == "__main__":
     graficar_distribucion_trials(df)
 
     # Guardar el DataFrame cargado para los scripts siguientes
-    salida = "eeg_data_cargado.parquet"
+    # 1. Definimos la ruta a la carpeta Outputs (un nivel arriba, luego entramos a Outputs)
+    directorio_salida = Path("../outputs")
+    
+    # 2. Definimos la ruta final del archivo
+    salida = directorio_salida / "eeg_data_cargado.parquet"
+    
+    # 3. Guardamos el archivo
     df.to_parquet(salida, index=False)
     print(f"\nDataset guardado en '{salida}' para uso en scripts posteriores.")
     print("\n[OK] Script 01 finalizado.")
