@@ -38,7 +38,7 @@ from collections import defaultdict
 # =============================================================================
 
 # Ruta a la carpeta que contiene los .tar.gz de cada sujeto
-DATA_DIR = Path(r"C:\Users\obeid\OneDrive\Desktop\Claude\TrabajoCuatrimestralSeñales_backup_20260529_122000\Database")
+DATA_DIR = Path("../data/eeg_full")
 
 # Frecuencia de muestreo del dataset (256 Hz)
 FS = 256  # Hz
