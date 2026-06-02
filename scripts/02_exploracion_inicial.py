@@ -254,73 +254,80 @@ def calcular_psd_promedio(df: pd.DataFrame, canal: str,
 def graficar_psd(df: pd.DataFrame):
     """
     Grafica el Power Spectral Density (PSD) de las señales crudas.
+    Estimado por el método de Welch (ventanas de 128 muestras, 50% solapamiento).
 
-    Para cada canal de interés, muestra el espectro promedio de control
-    y alcohólico en escala logarítmica (dB). Este gráfico es el que
-    justifica la elección del filtro pasa-banda:
-
-        - La mayor parte de la energía útil del EEG está por debajo de 30 Hz
-        - Por encima de 30 Hz domina el ruido de alta frecuencia
-        - Por debajo de 0.1 Hz hay deriva de línea de base
-
-    Las líneas verticales rojas marcan los límites del filtro elegido.
+    Dos paneles por canal:
+    - Izquierdo: espectro completo (0-128 Hz)
+    - Derecho: zoom en la banda de interés (0-30 Hz)
     """
-    fig, axes = plt.subplots(1, len(CANALES_INTERES),
-                             figsize=(5 * len(CANALES_INTERES), 5),
-                             sharey=True)
+    fig, axes = plt.subplots(
+        len(CANALES_INTERES), 2,
+        figsize=(14, 4 * len(CANALES_INTERES))
+    )
 
     fig.suptitle(
         "Espectro de Potencia (PSD) — Señales EEG crudas\n"
-        "Método de Welch — Promedio sobre trials de condición S1 obj",
+        "Estimado por el método de Welch "
+        "(ventanas de 128 muestras, solapamiento 50%)",
         fontsize=13
     )
 
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
 
-    for col, canal in enumerate(CANALES_INTERES):
-        ax = axes[col]
+    for fila, canal in enumerate(CANALES_INTERES):
+        ax_full = axes[fila][0]
+        ax_zoom = axes[fila][1]
 
         for grupo in ["control", "alcoholic"]:
             print(f"    Calculando PSD: {grupo} — {canal}...")
             freqs, psd_mean, psd_sem = calcular_psd_promedio(
                 df, canal, grupo, n_sujetos=15
             )
-
-            # Convertir a dB: 10 * log10(PSD)
             psd_db  = 10 * np.log10(psd_mean + 1e-12)
             sem_db  = 10 * np.log10(psd_mean + psd_sem + 1e-12) - psd_db
+            color   = colores[grupo]
 
-            color = colores[grupo]
-            ax.plot(freqs, psd_db, color=color, linewidth=1.8,
-                    label=grupo.capitalize())
-            ax.fill_between(freqs,
-                            psd_db - sem_db,
-                            psd_db + sem_db,
-                            color=color, alpha=0.15)
+            for ax in [ax_full, ax_zoom]:
+                ax.plot(freqs, psd_db, color=color,
+                       linewidth=1.8, label=grupo.capitalize())
+                ax.fill_between(freqs,
+                               psd_db - sem_db,
+                               psd_db + sem_db,
+                               color=color, alpha=0.15)
 
-        # Marcar límites del filtro pasa-banda
-        ax.axvline(0.1, color="orange", linestyle="--", linewidth=1.2,
-                   label="Corte inferior (0.1 Hz)")
-        ax.axvline(30,  color="green",  linestyle="--", linewidth=1.2,
-                   label="Corte superior (30 Hz)")
+        # Panel izquierdo — espectro completo
+        ax_full.axvspan(0, 30, alpha=0.12, color="green",
+                       label="Banda conservada (0-30 Hz)")
+        ax_full.axvline(30, color="green", linestyle="--",
+                       linewidth=1.5, label="Corte superior (30 Hz)")
+        ax_full.axvline(0.1, color="blue", linestyle=":",
+                       linewidth=1.2, label="Corte inferior (0.1 Hz)")
+        ax_full.set_xlim([0, FS / 2])
+        ax_full.set_title(f"Canal {canal} — Espectro completo (0–128 Hz)",
+                         fontsize=10)
+        ax_full.set_xlabel("Frecuencia (Hz)")
+        ax_full.set_ylabel("Potencia (dB)", fontsize=9)
+        ax_full.grid(True, alpha=0.3)
+        if fila == 0:
+            ax_full.legend(fontsize=8, loc="upper right")
 
-        # Sombrear zonas rechazadas por el filtro
-        ax.axvspan(0, 0.1, alpha=0.08, color="red",
-                   label="Zona filtrada")
-        ax.axvspan(30, freqs[-1], alpha=0.08, color="red")
+        # Panel derecho — zoom banda de interés
+        ax_zoom.axvspan(0, 30, alpha=0.12, color="green",
+                       label="Banda conservada (0-30 Hz)")
+        ax_zoom.axvline(30, color="green", linestyle="--", linewidth=1.5)
+        ax_zoom.set_xlim([0, 35])
+        ax_zoom.set_title(f"Canal {canal} — Zoom banda de interés (0–35 Hz)",
+                         fontsize=10)
+        ax_zoom.set_xlabel("Frecuencia (Hz)")
+        ax_zoom.set_ylabel("Potencia (dB)", fontsize=9)
+        ax_zoom.grid(True, alpha=0.3)
+        if fila == 0:
+            ax_zoom.legend(fontsize=8, loc="upper right")
 
-        ax.set_title(f"Canal: {canal}", fontsize=11)
-        ax.set_xlabel("Frecuencia (Hz)")
-        if col == 0:
-            ax.set_ylabel("Potencia (dB re µV²/Hz)")
-        ax.set_xlim([0, FS / 2])
-        ax.grid(True, alpha=0.3)
-
-        if col == 0:
-            ax.legend(fontsize=8, loc="upper right")
-
-    plt.tight_layout()
-    plt.savefig("../outputs/figura_exploracion_psd.png", dpi=150, bbox_inches="tight")
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.subplots_adjust(hspace=0.5)
+    plt.savefig("../outputs/figura_exploracion_psd.png",
+                dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_exploracion_psd.png'")
 
