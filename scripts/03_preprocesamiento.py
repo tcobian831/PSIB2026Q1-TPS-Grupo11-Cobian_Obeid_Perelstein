@@ -37,8 +37,8 @@ F_LOW  = 0.1      # Frecuencia de corte inferior del pasa-banda (Hz)
 F_HIGH = 30.0     # Frecuencia de corte superior del pasa-banda (Hz)
 ORDEN  = 4        # Orden del filtro Butterworth
 
-# Ventana de baseline: primeros 100 ms = primeras 26 muestras a 256 Hz
-N_BASELINE = int(0.100 * FS)   # = 25 muestras (índices 0–24)
+# Ventana de baseline: primeros 50 ms = primeras 13 muestras a 256 Hz
+N_BASELINE = int(0.050 * FS)   # = 12 muestras (índices 0–11)
 
 # Umbral de rechazo de artefactos (µV)
 UMBRAL_UV = 100.0
