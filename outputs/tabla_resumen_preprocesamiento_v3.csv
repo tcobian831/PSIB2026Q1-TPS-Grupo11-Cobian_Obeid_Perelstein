@@ -1,7 +1,0 @@
-grupo,condicion,n_trials_limpios
-alcoholic,S1 obj,3467
-control,S1 obj,2009
-alcoholic,S2 match,1753
-control,S2 match,1004
-alcoholic,S2 nomatch,1735
-control,S2 nomatch,992
