@@ -191,7 +191,7 @@ if __name__ == "__main__":
 
     print("=" * 60)
     print("TPS — Potenciales Evocados Visuales en Alcoholismo")
-    print("Script 02: Preprocesamiento")
+    print("Script 03: Preprocesamiento")
     print("=" * 60)
 
     # -------------------------------------------------------------------------
