@@ -278,7 +278,6 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     print("\nGenerando gráfico comparativo cruda vs preprocesada...")
 
-    # Tomar un trial de ejemplo: primer sujeto control, canal P8, S1 obj
     sujeto_ej = df_proc[df_proc["grupo"] == "control"]["sujeto"].iloc[0]
     trial_ej  = df_proc[
         (df_proc["sujeto"] == sujeto_ej) &
@@ -286,14 +285,12 @@ if __name__ == "__main__":
         (df_proc["condicion"] == "S1 obj")
     ]["trial_num"].iloc[0]
 
-    # Señal preprocesada
     señal_proc = df_proc[
         (df_proc["sujeto"] == sujeto_ej) &
         (df_proc["trial_num"] == trial_ej) &
         (df_proc["canal"] == "P8")
     ].sort_values("muestra")["valor_uV"].values
 
-    # Señal cruda (del DataFrame original antes de procesar)
     df_cruda_ej = df[
         (df["sujeto"] == sujeto_ej) &
         (df["trial_num"] == trial_ej) &
@@ -303,13 +300,21 @@ if __name__ == "__main__":
 
     tiempo_ms = np.arange(256) / FS * 1000
 
-    fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
+    # PSD de ambas señales
+    from scipy.signal import welch
+    freqs_c, psd_c = welch(señal_cruda, fs=FS, nperseg=128)
+    freqs_p, psd_p = welch(señal_proc,  fs=FS, nperseg=128)
+    psd_c_db = 10 * np.log10(psd_c + 1e-12)
+    psd_p_db = 10 * np.log10(psd_p + 1e-12)
+
+    fig, axes = plt.subplots(3, 1, figsize=(12, 9))
     fig.suptitle(
         f"Efecto del preprocesamiento — Canal P8 — "
         f"Sujeto: {sujeto_ej} (control) — S1 obj",
         fontsize=12
     )
 
+    # Panel 1: señal cruda
     axes[0].plot(tiempo_ms, señal_cruda, color="#64748b", linewidth=1)
     axes[0].set_ylabel("Amplitud (µV)")
     axes[0].set_title("Señal cruda")
@@ -317,23 +322,34 @@ if __name__ == "__main__":
     axes[0].axvline(0, color="gray", linestyle="--", linewidth=0.8)
     axes[0].grid(True, alpha=0.3)
 
+    # Panel 2: señal preprocesada
     axes[1].plot(tiempo_ms, señal_proc, color="#2563eb", linewidth=1)
     axes[1].set_ylabel("Amplitud (µV)")
-    axes[1].set_xlabel("Tiempo (ms)")
-    axes[1].set_title(
-        f"Señal preprocesada "
-        f"(Butterworth {F_LOW}–{F_HIGH} Hz + baseline)"
-    )
+    axes[1].set_title(f"Señal preprocesada (Butterworth {F_LOW}–{F_HIGH} Hz + baseline)")
     axes[1].axhline(0, color="black", linewidth=0.5)
     axes[1].axvline(0, color="gray", linestyle="--", linewidth=0.8)
     axes[1].axvspan(220, 260, alpha=0.15, color="orange", label="Ventana c240")
     axes[1].legend(fontsize=9)
     axes[1].grid(True, alpha=0.3)
 
+    # Panel 3: diferencia cruda - preprocesada
+    diferencia = señal_cruda - señal_proc
+    axes[2].plot(tiempo_ms, diferencia, color="#dc2626", linewidth=1)
+    axes[2].axhline(0, color="black", linewidth=0.5)
+    axes[2].set_xlabel("Tiempo (ms)")
+    axes[2].set_ylabel("Amplitud (µV)")
+    axes[2].set_title(
+        "Diferencia (cruda − preprocesada) = ruido eliminado por el filtro\n"
+        "Lo que se ve acá es lo que el filtro Butterworth descartó"
+    )
+    axes[2].grid(True, alpha=0.3)
+
     plt.tight_layout()
-    plt.savefig("../outputs/figura_preprocesamiento.png", dpi=150, bbox_inches="tight")
+    plt.savefig("../outputs/figura_preprocesamiento.png",
+                dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada como 'figura_preprocesamiento.png'")
+
 
     # -------------------------------------------------------------------------
     # Guardar resultado
