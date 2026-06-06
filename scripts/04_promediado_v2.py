@@ -441,42 +441,41 @@ def comparar_snr(snr_df: pd.DataFrame):
 
 
 # =============================================================================
-# VISUALIZACIÓN
+# VISUALIZACIÓN — figuras divididas por hemisferio
 # =============================================================================
 
-def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame):
+def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame,
+                           canales=None, hemi_label="",
+                           out_file="figura_GA.png"):
     """
-    Grand Average por canal y condición.
-    Filas = condiciones, columnas = canales (ordenados: derecho luego izquierdo).
+    Grand Average por canal y condición para un hemisferio.
     Homogéneo = línea sólida, Inhomogéneo = punteada.
     Control = azul, Alcohólico = rojo.
-    Se marca la ventana 220-260 ms (componente c240/VMP del paper).
     """
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
     tiempo_ms = np.arange(N_SAMPLES) / FS * 1000
-
-    # Ordenar canales: primero derechos, luego izquierdos
-    canales_plot = [c for c in CANALES_INTERES if c in ga_hom["canal"].unique()]
+    canales_ref = canales if canales is not None else CANALES_INTERES
+    canales_plot = [c for c in canales_ref if c in ga_hom["canal"].unique()]
 
     fig, axes = plt.subplots(
         len(CONDICIONES), len(canales_plot),
-        figsize=(4.5 * len(canales_plot), 4 * len(CONDICIONES)),
+        figsize=(5.5 * len(canales_plot), 4.5 * len(CONDICIONES)),
         sharex=True
     )
     if len(CONDICIONES) == 1:
         axes = [axes]
 
+    hdr = f" — Hemisferio {hemi_label}" if hemi_label else ""
     fig.suptitle(
-        "Grand Average — Homogéneo (sólida) vs Inhomogéneo (punteada)\n"
-        "Control (azul) vs Alcohólico (rojo) | "
-        "Sombreado: ventana c240 (220–260 ms)",
+        f"Grand Average{hdr} — Hom. (solida) vs Inh. (punteada)\n"
+        "Control (azul) vs Alcoholico (rojo) | "
+        "Sombreado: ventana c240 (220-260 ms)",
         fontsize=13
     )
 
     for fila, cond in enumerate(CONDICIONES):
         for col, canal in enumerate(canales_plot):
             ax = axes[fila][col]
-            hemisferio = "D" if canal in CANALES_DERECHO else "I"
 
             for grupo in ["control", "alcoholic"]:
                 color = colores[grupo]
@@ -499,7 +498,7 @@ def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame):
                             color=color, linewidth=1.8, linestyle=estilo,
                             label=lbl)
 
-                # Banda SEM solo para homogéneo (más legible)
+                # Banda SEM solo para homogeneo (mas legible)
                 d_hom = ga_hom[
                     (ga_hom["grupo"] == grupo) &
                     (ga_hom["canal"] == canal) &
@@ -518,42 +517,43 @@ def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame):
                        label="c240" if col == 0 and fila == 0 else "")
             ax.axvline(0,  color="gray",  linestyle=":", linewidth=0.8)
             ax.axhline(0,  color="black", linewidth=0.5)
-            ax.set_title(f"Canal: {canal} ({hemisferio})\n{cond}", fontsize=9)
+            ax.set_title(f"Canal: {canal}\n{cond}", fontsize=10)
             ax.set_xlabel("Tiempo (ms)")
-            ax.set_ylabel("Amplitud (µV)")
+            ax.set_ylabel("Amplitud (uV)")
             ax.grid(True, alpha=0.25)
             if fila == 0 and col == 0:
                 ax.legend(fontsize=7, loc="upper right")
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_GA_comparacion.png",
-                dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_GA_comparacion.png'")
+    print(f"  Figura guardada: '{out_file}'")
 
 
-def graficar_snr(snr_df: pd.DataFrame):
+def graficar_snr(snr_df: pd.DataFrame, canales=None, hemi_label="",
+                 out_file="figura_snr.png"):
     """
-    Barras de SNR mediana por canal y condición, separadas por hemisferio.
-    SNR = var(s_avg) / var(error par/impar).
+    Barras de SNR mediana por canal y condicion para un hemisferio.
     """
+    canales_ref = canales if canales is not None else CANALES_INTERES
+    canales_plot = [c for c in canales_ref if c in snr_df["canal"].unique()]
+
     fig, axes = plt.subplots(1, len(CONDICIONES),
-                             figsize=(7 * len(CONDICIONES), 5))
+                             figsize=(8 * len(CONDICIONES), 5))
     if len(CONDICIONES) == 1:
         axes = [axes]
 
+    hdr = f" — Hemisferio {hemi_label}" if hemi_label else ""
     fig.suptitle(
-        "SNR del promedio del ensamble por canal y condición\n"
-        "SNR = var(señal estimada) / var(error par/impar)  |  "
+        f"SNR del promedio del ensamble{hdr}\n"
+        "SNR = var(senal estimada) / var(error par/impar)  |  "
         "Barras: mediana por canal",
         fontsize=12
     )
 
     colores_metodo = {"snr_homogeneo": "#94a3b8", "snr_inhomogeneo": "#16a34a"}
-    labels_metodo  = {"snr_homogeneo": "Homogéneo", "snr_inhomogeneo": "Inhomogéneo"}
+    labels_metodo  = {"snr_homogeneo": "Homogeneo", "snr_inhomogeneo": "Inhomogeneo"}
 
-    # Separar canales por hemisferio para el eje x
-    canales_plot = [c for c in CANALES_INTERES if c in snr_df["canal"].unique()]
     x = np.arange(len(canales_plot))
     ancho = 0.35
 
@@ -571,27 +571,17 @@ def graficar_snr(snr_df: pd.DataFrame):
                    label=labels_metodo[metodo],
                    color=colores_metodo[metodo], alpha=0.85)
 
-        # Línea vertical separando hemisferios
-        ax.axvline(len(CANALES_DERECHO) - 0.5 + ancho / 2,
-                   color="black", linewidth=1.2, linestyle="--", alpha=0.5)
-        ax.text(len(CANALES_DERECHO) / 2 - 0.5, ax.get_ylim()[1] * 0.95,
-                "Hemisferio D", ha="center", fontsize=9, color="gray")
-        ax.text(len(CANALES_DERECHO) + len(CANALES_IZQUIERDO) / 2 - 0.5,
-                ax.get_ylim()[1] * 0.95,
-                "Hemisferio I", ha="center", fontsize=9, color="gray")
-
         ax.set_xticks(x + ancho / 2)
         ax.set_xticklabels(canales_plot, rotation=30)
-        ax.set_title(f"Condición: {cond}", fontsize=11)
+        ax.set_title(f"Condicion: {cond}", fontsize=11)
         ax.set_ylabel("SNR mediana")
         ax.legend(fontsize=10)
         ax.grid(True, axis="y", alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_snr_comparacion.png",
-                dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_snr_comparacion.png'")
+    print(f"  Figura guardada: '{out_file}'")
 
 
 # =============================================================================
@@ -601,30 +591,21 @@ def graficar_snr(snr_df: pd.DataFrame):
 if __name__ == "__main__":
 
     print("=" * 70)
-    print("TPS — Potenciales Evocados Visuales en Alcoholismo")
-    print("Script 04: Promediado  [v2 — grupos igualados + SNR corregida]")
+    print("TPS -- Potenciales Evocados Visuales en Alcoholismo")
+    print("Script 04: Promediado  [v2 -- PE completo + GA igualado]")
     print("=" * 70)
 
     if not ENTRADA.exists():
         raise FileNotFoundError(
-            f"No se encontró '{ENTRADA}'.\n"
-            "Corré primero el Script 03."
+            f"No se encontro '{ENTRADA}'.\n"
+            "Corre primero el Script 03."
         )
 
     print(f"\nCargando '{ENTRADA}'...")
     df = pd.read_parquet(ENTRADA)
     print(f"  {len(df):,} filas cargadas")
     print(f"  Sujetos originales: "
-          f"{df[df['grupo']=='alcoholic']['sujeto'].nunique()} alcohólicos, "
-          f"{df[df['grupo']=='control']['sujeto'].nunique()} controles")
-
-    # -------------------------------------------------------------------------
-    # Igualación de grupos
-    # -------------------------------------------------------------------------
-    print(f"\nIgualando grupos a {N_SUJETOS} sujetos por grupo...")
-    df = igualar_grupos(df, N_SUJETOS, SEED)
-    print(f"  Sujetos tras igualación: "
-          f"{df[df['grupo']=='alcoholic']['sujeto'].nunique()} alcohólicos, "
+          f"{df[df['grupo']=='alcoholic']['sujeto'].nunique()} alcoholicos, "
           f"{df[df['grupo']=='control']['sujeto'].nunique()} controles")
 
     # Verificar canales disponibles
@@ -636,46 +617,76 @@ if __name__ == "__main__":
         print(f"  Continuando con: {canales_en_datos}")
 
     # -------------------------------------------------------------------------
-    # Cálculo de PE individual + SNR
+    # Calculo de PE individual + SNR  (TODOS los sujetos: 77 alc + 45 ctrl)
     # -------------------------------------------------------------------------
-    print("\nCalculando PE individuales (homogéneo e inhomogéneo) + SNR...")
+    # NOTA: el PE se calcula para TODOS los sujetos porque el Script 06 necesita
+    # la muestra completa (77 vs 45) para el t-test (Welch maneja N desigual).
+    # La igualacion a 45+45 se aplica SOLO al Grand Average.
+    print("\nCalculando PE individuales (homogeneo e inhomogeneo) + SNR...")
+    print("  (TODOS los sujetos -- 77 alc + 45 ctrl -- para inferencia completa)")
     pe_hom, pe_inh, snr_df = calcular_PE_individual(df)
-    print(f"\n  PE homogéneo:    {len(pe_hom):,} filas")
-    print(f"  PE inhomogéneo:  {len(pe_inh):,} filas")
+    print(f"\n  PE homogeneo:    {len(pe_hom):,} filas")
+    print(f"  PE inhomogeneo:  {len(pe_inh):,} filas")
+    print(f"  Sujetos en PE: "
+          f"{pe_hom[pe_hom['grupo']=='alcoholic']['sujeto'].nunique()} alc + "
+          f"{pe_hom[pe_hom['grupo']=='control']['sujeto'].nunique()} ctrl")
 
-    # -------------------------------------------------------------------------
-    # Grand Average
-    # -------------------------------------------------------------------------
-    print("\nCalculando Grand Average...")
-    ga_hom = calcular_grand_average(pe_hom)
-    ga_inh = calcular_grand_average(pe_inh)
-
-    # -------------------------------------------------------------------------
-    # Guardar archivos
-    # -------------------------------------------------------------------------
-    print("\nGuardando archivos...")
+    # Guardar PE individual (muestra COMPLETA para Scripts 05/06)
+    print("\nGuardando PE individuales (muestra completa)...")
     pe_hom.to_parquet(SALIDA_HOM, index=False)
     pe_inh.to_parquet(SALIDA_INH, index=False)
+    print(f"  PE homogeneo   -> '{SALIDA_HOM}'")
+    print(f"  PE inhomogeneo -> '{SALIDA_INH}'")
+
+    # -------------------------------------------------------------------------
+    # Igualacion de grupos (SOLO para Grand Average)
+    # -------------------------------------------------------------------------
+    print(f"\nIgualando grupos a {N_SUJETOS} sujetos por grupo (SOLO para GA)...")
+    df_sub = igualar_grupos(df, N_SUJETOS, SEED)
+    sujetos_ga = set(df_sub["sujeto"].unique())
+    print(f"  Sujetos para GA: "
+          f"{df_sub[df_sub['grupo']=='alcoholic']['sujeto'].nunique()} alc + "
+          f"{df_sub[df_sub['grupo']=='control']['sujeto'].nunique()} ctrl")
+
+    pe_hom_ga = pe_hom[pe_hom["sujeto"].isin(sujetos_ga)]
+    pe_inh_ga = pe_inh[pe_inh["sujeto"].isin(sujetos_ga)]
+    snr_df_ga = snr_df[snr_df["sujeto"].isin(sujetos_ga)]
+
+    # -------------------------------------------------------------------------
+    # Grand Average (sobre muestra igualada 45+45)
+    # -------------------------------------------------------------------------
+    print("\nCalculando Grand Average (sobre 45+45)...")
+    ga_hom = calcular_grand_average(pe_hom_ga)
+    ga_inh = calcular_grand_average(pe_inh_ga)
+
     ga_hom.to_parquet(SALIDA_GA_HOM, index=False)
     ga_inh.to_parquet(SALIDA_GA_INH, index=False)
-    snr_df.to_csv(SALIDA_SNR, index=False)
-    print(f"  PE homogéneo   → '{SALIDA_HOM}'")
-    print(f"  PE inhomogéneo → '{SALIDA_INH}'")
-    print(f"  Tabla SNR      → '{SALIDA_SNR}'")
+    snr_df_ga.to_csv(SALIDA_SNR, index=False)
+    print(f"  GA homogeneo   -> '{SALIDA_GA_HOM}'")
+    print(f"  GA inhomogeneo -> '{SALIDA_GA_INH}'")
+    print(f"  Tabla SNR      -> '{SALIDA_SNR}'")
 
     # -------------------------------------------------------------------------
-    # Comparación de SNR en consola
+    # Comparacion de SNR en consola
     # -------------------------------------------------------------------------
-    comparar_snr(snr_df)
+    comparar_snr(snr_df_ga)
 
     # -------------------------------------------------------------------------
-    # Gráficos
+    # Graficos -- divididos por hemisferio
     # -------------------------------------------------------------------------
-    print("\nGenerando gráficos...")
-    graficar_grand_average(ga_hom, ga_inh)
-    graficar_snr(snr_df)
+    print("\nGenerando graficos (por hemisferio)...")
+    for canales, label, sufijo in [
+        (CANALES_DERECHO,   "derecho",   "derecho"),
+        (CANALES_IZQUIERDO, "izquierdo", "izquierdo"),
+    ]:
+        graficar_grand_average(
+            ga_hom, ga_inh, canales=canales, hemi_label=label,
+            out_file=f"figura_GA_{sufijo}.png")
+        graficar_snr(
+            snr_df_ga, canales=canales, hemi_label=label,
+            out_file=f"figura_snr_{sufijo}.png")
 
     print("\n[OK] Script 04 finalizado.")
-    print("\nPróximo paso:")
-    print("  Revisá la figura del Grand Average y la tabla de SNR.")
-    print("  El método con mayor SNR se usa como entrada del Script 05.")
+    print("\nProximo paso:")
+    print("  Revisa las figuras del Grand Average y la tabla de SNR.")
+    print("  El PE individual (muestra completa) esta listo para el Script 05.")

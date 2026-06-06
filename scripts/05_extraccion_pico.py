@@ -1,56 +1,49 @@
 """
 ==============================================================================
-TPS - Procesamiento de Señales Biomédicas
+TPS - Procesamiento de Senales Biomedicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
-Grupo 11: Cobián, Obeid, Perelstein
+Grupo 11: Cobian, Obeid, Perelstein
 
-Script 05: Extracción del Pico, Jerarquía de Promedios
-           y comparación Homogéneo vs Inhomogéneo
+Script 05: Extraccion de Metricas del c240 (y positividad tardia)
 ==============================================================================
 
-Propósito:
-    Para cada sujeto, canal y condición, extraer la amplitud máxima del PE y
-    el instante en que ocurre (latencia), a partir de los dos métodos de
-    promediado del Script 04 (homogéneo e inhomogéneo) y con DOS medidas:
+Proposito:
+    Para cada sujeto, canal y condicion, extraer metricas del PE individual
+    en DOS ventanas temporales justificadas por la teoria:
 
-    (a) GLOBAL  — máximo positivo en toda la señal (sin ventana).
-        Es la mirada exploratoria: deja ver DÓNDE pica realmente el PE. Su
-        histograma de latencias muestra que el máximo global suele caer en el
-        P1 (~100 ms) o en la onda lenta tardía (>400 ms), NO en el c240. Por
-        eso el máximo global, por sí solo, no aísla el componente de interés.
+    VENTANA PRIMARIA: 220-260 ms  (componente c240/VMP de Zhang et al. 1997)
+        Esta es la medicion oficial del c240, anclada al marco teorico.
+        NO se eligio mirando el Grand Average (eso seria seleccion post-hoc).
 
-    (b) VENTANA — máximo positivo dentro de 200–350 ms.
-        Ventana justificada por el Grand Average (la positividad de los
-        controles pica ~250–350 ms, algo más tarde que la ventana clásica
-        220–260 ms de Zhang et al.). Excluye el P1 temprano y la onda lenta,
-        de modo que la amplitud medida corresponde al c240/VMP.
+    VENTANA SECUNDARIA: 290-340 ms  (positividad tardia / posible c320)
+        En nuestros datos, la positividad del Grand Average pica ~300-340 ms,
+        algo mas tarde que en Zhang. Probablemente corresponde al c320 de Zhang
+        (que el reporta en ventana 290-340 ms), NO al c240 desplazado.
+        Se reporta como ANALISIS SECUNDARIO con ese nombre explicito.
 
-    Se usa el MÁXIMO POSITIVO (no absoluto): el c240 es positivo, y el máximo
-    absoluto capturaría la deflexión negativa de ~180 ms (grande en alcohólicos).
+    Metricas por sujeto, canal y condicion (para cada ventana):
+      - media_c240 / media_c320 : MEDIA de la senal en la ventana (metrica
+        principal). Estable y honesta aunque la ventana caiga sobre el flanco.
+      - max_c240 / max_c320 : maximo positivo en la ventana (metrica secundaria).
+      - lat_max_c240 / lat_max_c320 : latencia del maximo positivo (ms).
+      - auc_c240 / auc_c320 : area con signo bajo la curva (uV*ms, trapecio).
+        Complementaria al pico: integra toda la deflexion.
+        Mejora futura (no implementada): fractional area latency.
 
-    Reportar la amplitud con las dos medidas permite mostrar que la conclusión
-    (control > alcohólico) se sostiene midamos con ventana o sin ella.
+    Se usa como entrada tanto el PE HOMOGENEO como el INHOMOGENEO del Script 04.
+    El Script 06 lidera con el homogeneo como analisis principal y usa el
+    inhomogeneo como analisis secundario.
 
-Jerarquía de promedios (para cada método, sobre la medida en ventana):
-    A(c,p,k)  amplitud por canal c, sujeto p, condición k   (un valor/sujeto)
-        ↓ promediar sobre sujetos p
-    A(c,k)    amplitud representativa por canal y condición
-        ↓ promediar sobre canales c
-    A(k)      amplitud representativa por grupo y condición
-
-Comparación entre grupos (sin estadística avanzada):
-    Razón de medias = amplitud media control / amplitud media alcohólico.
-    Cuanto mayor que 1, más separados están los grupos en la dirección de la
-    hipótesis. El solapamiento de los boxplots complementa esta lectura de
-    forma visual. El test estadístico formal se hace en el Script 06.
+    Nota sobre rechazo de artefactos (Script 03): el umbral +-100 uV esta lejos
+    de las colas de los datos (~+-50 uV). El rechazo real fue 0.1% de los trials.
 
 Entrada:  outputs/eeg_PE_homogeneo.parquet
-          outputs/eeg_PE_inhomogeneo.parquet     (ambos del Script 04)
-Salida:   outputs/eeg_c240_extraido.csv          (pico por sujeto: global y ventana)
-          outputs/figura_pico_amplitud_homogeneo.png
-          outputs/figura_pico_amplitud_inhomogeneo.png
-          outputs/figura_pico_latencia.png
-          outputs/figura_comparacion_grupos.png
+          outputs/eeg_PE_inhomogeneo.parquet    (ambos del Script 04, muestra COMPLETA)
+Salida:   outputs/eeg_c240_extraido.csv         (metricas por sujeto, 77+45 sujetos)
+          outputs/figura_boxplot_derecho_*.png   (boxplots por hemisferio)
+          outputs/figura_boxplot_izquierdo_*.png
+          outputs/figura_latencia_derecho.png
+          outputs/figura_latencia_izquierdo.png
 
 Uso:
     Correr desde la carpeta scripts/
@@ -64,28 +57,28 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # =============================================================================
-# CONFIGURACIÓN
+# CONFIGURACION
 # =============================================================================
 
 FS        = 256   # Hz
 N_SAMPLES = 256   # muestras por trial
 
-CANALES_INTERES = ["P8", "PO8", "T8", "TP8"]
-CONDICIONES     = ["S1 obj", "S2 nomatch"]
+# Canales
+CANALES_DERECHO    = ["P8",  "PO8",  "T8",  "TP8"]
+CANALES_IZQUIERDO  = ["P7",  "PO7",  "T7",  "TP7"]
+CANALES_INTERES    = CANALES_DERECHO + CANALES_IZQUIERDO
+PARES_HEMISFERICOS = [("P8", "P7"), ("PO8", "PO7"), ("T8", "T7"), ("TP8", "TP7")]
+CONDICIONES        = ["S1 obj", "S2 nomatch"]
 
-# Medida GLOBAL: máximo positivo en toda la señal (sin ventana).
-# Subir T_MIN_MS a ~20-30 ms solo si aparece artefacto de estímulo al inicio.
-T_MIN_MS  = 0
-M_MIN     = int(round(T_MIN_MS / 1000 * FS))
+# --- Ventana PRIMARIA: c240 (Zhang et al. 1997, tabla 1) ---
+V_C240 = (220, 260)   # ms
+M_C240_LO = int(round(V_C240[0] / 1000 * FS))
+M_C240_HI = int(round(V_C240[1] / 1000 * FS))
 
-# Medida VENTANA: máximo positivo dentro de esta ventana (ms).
-VENTANA_ANALISIS = (200, 350)
-M_VENT_LO = int(round(VENTANA_ANALISIS[0] / 1000 * FS))   # 51
-M_VENT_HI = int(round(VENTANA_ANALISIS[1] / 1000 * FS))   # 90
-
-# Ventana clásica del paper, SOLO para marcarla en los gráficos y reportar
-# cuántos picos globales caen dentro.
-VENTANA_PAPER = (220, 260)  # ms
+# --- Ventana SECUNDARIA: positividad tardia / posible c320 ---
+V_C320 = (290, 340)   # ms
+M_C320_LO = int(round(V_C320[0] / 1000 * FS))
+M_C320_HI = int(round(V_C320[1] / 1000 * FS))
 
 METODOS = {
     "homogeneo":   Path("../outputs/eeg_PE_homogeneo.parquet"),
@@ -95,49 +88,48 @@ METODOS = {
 SALIDA_CSV = Path("../outputs/eeg_c240_extraido.csv")
 
 # =============================================================================
-# EXTRACCIÓN DEL PICO
+# FUNCIONES DE EXTRACCION
 # =============================================================================
 
-def extraer_pico(senal: np.ndarray, m_ini: int, m_fin: int) -> tuple:
+def extraer_metricas_ventana(senal, m_ini, m_fin):
     """
-    Máximo POSITIVO y su latencia dentro de senal[m_ini:m_fin].
-
-    Args:
-        senal: array (N_SAMPLES,)
-        m_ini, m_fin: índices de muestra que delimitan la búsqueda [m_ini, m_fin)
-    Retorna:
-        (amplitud_uV, latencia_ms)
+    Para senal[m_ini:m_fin] calcula:
+      - media: promedio de la senal en la ventana (metrica principal)
+      - maximo: maximo positivo
+      - latencia: latencia del maximo positivo (ms)
+      - auc: area con signo (trapecio, uV*ms)
     """
     seg = senal[m_ini:m_fin]
+    media = float(np.mean(seg))
     idx = int(np.argmax(seg))
-    amplitud = float(seg[idx])
+    maximo = float(seg[idx])
     latencia = float((idx + m_ini) / FS * 1000)
-    return amplitud, latencia
+    auc = float(np.trapz(seg, dx=1000.0 / FS))
+    return media, maximo, latencia, auc
 
 
-def extraer_todos_picos(pe_ind: pd.DataFrame, metodo: str) -> pd.DataFrame:
+def extraer_todos(pe_ind: pd.DataFrame, metodo: str) -> pd.DataFrame:
     """
-    Para cada combinación sujeto×canal×condición extrae el pico con las dos
-    medidas: GLOBAL (toda la señal) y VENTANA (200–350 ms).
-
-    Retorna DataFrame con columnas:
-        sujeto, grupo, canal, condicion, metodo,
-        amp_global, lat_global, amp_ventana, lat_ventana,
-        global_en_ventana_paper, n_trials
+    Para cada sujeto x canal x condicion, extrae metricas en ambas ventanas.
     """
     resultados = []
     grupos = pe_ind.groupby(["sujeto", "grupo", "canal", "condicion"])
     print(f"  [{metodo}] {len(grupos):,} combinaciones...")
 
     for (sujeto, grupo, canal, cond), sub in grupos:
-        s = sub.sort_values("muestra")["PE_uV"].values
+        s = sub.sort_values("muestra")["valor_uV"].values
         if len(s) != N_SAMPLES:
             continue
 
-        amp_g, lat_g = extraer_pico(s, M_MIN, N_SAMPLES)
-        amp_v, lat_v = extraer_pico(s, M_VENT_LO, M_VENT_HI + 1)
-        n_trials = (sub["n_trials"].iloc[0]
-                    if "n_trials" in sub.columns else np.nan)
+        n_trials = sub["n_trials"].iloc[0] if "n_trials" in sub.columns else np.nan
+
+        # Ventana primaria: c240 (220-260 ms)
+        media_c240, max_c240, lat_c240, auc_c240 = extraer_metricas_ventana(
+            s, M_C240_LO, M_C240_HI + 1)
+
+        # Ventana secundaria: c320 (290-340 ms)
+        media_c320, max_c320, lat_c320, auc_c320 = extraer_metricas_ventana(
+            s, M_C320_LO, M_C320_HI + 1)
 
         resultados.append({
             "sujeto":      sujeto,
@@ -145,166 +137,109 @@ def extraer_todos_picos(pe_ind: pd.DataFrame, metodo: str) -> pd.DataFrame:
             "canal":       canal,
             "condicion":   cond,
             "metodo":      metodo,
-            "amp_global":  amp_g,
-            "lat_global":  lat_g,
-            "amp_ventana": amp_v,
-            "lat_ventana": lat_v,
-            "global_en_ventana_paper": VENTANA_PAPER[0] <= lat_g <= VENTANA_PAPER[1],
             "n_trials":    n_trials,
+            # Ventana primaria c240
+            "media_c240":  media_c240,
+            "max_c240":    max_c240,
+            "lat_max_c240": lat_c240,
+            "auc_c240":    auc_c240,
+            # Ventana secundaria c320
+            "media_c320":  media_c320,
+            "max_c320":    max_c320,
+            "lat_max_c320": lat_c320,
+            "auc_c320":    auc_c320,
         })
 
     return pd.DataFrame(resultados)
 
 
 # =============================================================================
-# JERARQUÍA DE PROMEDIOS
+# COHEN'S D
 # =============================================================================
 
-def calcular_jerarquia(df_pico: pd.DataFrame,
-                       col_amp: str = "amp_ventana",
-                       col_lat: str = "lat_ventana") -> tuple:
+def cohens_d(ctrl_vals, alc_vals):
     """
-    Construye la jerarquía A(c,p,k) → A(c,k) → A(k) para un método y una medida.
-
-    Retorna:
-        nivel2: A(c,k) y t(c,k)   (promedio sobre sujetos)
-        nivel3: A(k)   y t(k)     (promedio sobre canales)
+    Cohen's d para dos muestras independientes (pooled SD).
+    d > 0 indica que el primer grupo (control) tiene media mayor.
     """
-    nivel2 = (
-        df_pico
-        .groupby(["grupo", "canal", "condicion"])
-        .agg(
-            A_media=(col_amp, "mean"),
-            A_sd=(col_amp, "std"),
-            t_media=(col_lat, "mean"),
-            t_sd=(col_lat, "std"),
-            n_sujetos=("sujeto", "count"),
-        )
-        .reset_index()
-    )
-    nivel3 = (
-        nivel2
-        .groupby(["grupo", "condicion"])
-        .agg(
-            A_global=("A_media", "mean"),
-            A_global_sd=("A_media", "std"),
-            t_global=("t_media", "mean"),
-            t_global_sd=("t_media", "std"),
-        )
-        .reset_index()
-    )
-    return nivel2, nivel3
-
-
-def imprimir_jerarquia(nivel2: pd.DataFrame, nivel3: pd.DataFrame, titulo: str):
-    print("\n" + "=" * 72)
-    print(f"JERARQUÍA DE PROMEDIOS — {titulo}")
-    print("=" * 72)
-
-    print("\n--- NIVEL 2: A(c,k) — promedio por canal y condición ---")
-    print(f"  {'Grupo':<11}{'Canal':<6}{'Condición':<12}"
-          f"{'Amplitud (µV)':>17}{'Latencia (ms)':>17}{'N':>5}")
-    print("  " + "-" * 66)
-    for _, r in nivel2.sort_values(["condicion", "grupo", "canal"]).iterrows():
-        print(f"  {r['grupo']:<11}{r['canal']:<6}{r['condicion']:<12}"
-              f"{r['A_media']:>+9.3f} ± {r['A_sd']:>5.3f}"
-              f"{r['t_media']:>9.1f} ± {r['t_sd']:>5.1f}"
-              f"{int(r['n_sujetos']):>5}")
-
-    print("\n--- NIVEL 3: A(k) — amplitud representativa por grupo ---")
-    print(f"  {'Grupo':<11}{'Condición':<12}{'A global (µV)':>17}{'t global (ms)':>17}")
-    print("  " + "-" * 56)
-    for _, r in nivel3.sort_values(["condicion", "grupo"]).iterrows():
-        print(f"  {r['grupo']:<11}{r['condicion']:<12}"
-              f"{r['A_global']:>+9.3f} ± {r['A_global_sd']:>5.3f}"
-              f"{r['t_global']:>9.1f} ± {r['t_global_sd']:>5.1f}")
+    n1, n2 = len(ctrl_vals), len(alc_vals)
+    if n1 < 2 or n2 < 2:
+        return np.nan
+    m1, m2 = ctrl_vals.mean(), alc_vals.mean()
+    s1, s2 = ctrl_vals.std(ddof=1), alc_vals.std(ddof=1)
+    sp = np.sqrt(((n1 - 1) * s1**2 + (n2 - 1) * s2**2) / (n1 + n2 - 2))
+    if sp < 1e-12:
+        return np.nan
+    return (m1 - m2) / sp
 
 
 # =============================================================================
-# COMPARACIÓN ENTRE GRUPOS (razón de medias — sin estadística avanzada)
+# RESUMEN DESCRIPTIVO
 # =============================================================================
 
-def comparar_grupos(df_all: pd.DataFrame) -> pd.DataFrame:
+def imprimir_resumen(df_all, metodo, col_media, ventana_label):
     """
-    Para cada método × medida × canal × condición: media de cada grupo y
-    razón control/alcohólico. Razón > 1 ⇒ control mayor (hipótesis).
+    Imprime media +- SD por grupo, diferencia y Cohen's d.
     """
-    filas = []
-    for metodo in df_all["metodo"].unique():
-        for medida, col in [("global", "amp_global"), ("ventana", "amp_ventana")]:
-            for canal in CANALES_INTERES:
-                for cond in CONDICIONES:
-                    sub = df_all[(df_all["metodo"] == metodo) &
-                                 (df_all["canal"] == canal) &
-                                 (df_all["condicion"] == cond)]
-                    ctrl = sub[sub["grupo"] == "control"][col].dropna()
-                    alc  = sub[sub["grupo"] == "alcoholic"][col].dropna()
-                    if len(ctrl) == 0 or len(alc) == 0:
-                        continue
-                    mc, ma = ctrl.mean(), alc.mean()
-                    filas.append({
-                        "metodo": metodo, "medida": medida,
-                        "canal": canal, "condicion": cond,
-                        "control_media": mc, "alcoholic_media": ma,
-                        "razon": (mc / ma) if ma > 1e-9 else np.nan,
-                        "n_ctrl": len(ctrl), "n_alc": len(alc),
-                    })
-    comp = pd.DataFrame(filas)
-
-    print("\n" + "=" * 78)
-    print("COMPARACIÓN ENTRE GRUPOS — razón de medias control / alcohólico")
-    print("razón > 1 ⇒ control mayor (hipótesis). Más alto = más separación.")
-    print("=" * 78)
-    for metodo in df_all["metodo"].unique():
-        for medida in ["global", "ventana"]:
-            sub = comp[(comp["metodo"] == metodo) & (comp["medida"] == medida)]
-            if sub.empty:
+    df = df_all[df_all["metodo"] == metodo]
+    print(f"\n{'='*76}")
+    print(f"RESUMEN — {ventana_label} — metodo {metodo.upper()}")
+    print(f"Metrica: {col_media} (media en ventana)")
+    print(f"{'='*76}")
+    print(f"  {'Canal':<6}{'Cond.':<12}{'Control':>14}{'Alcoholico':>16}"
+          f"{'Dif.':>9}{'d':>7}{'N ctrl':>7}{'N alc':>7}")
+    print("  " + "-" * 73)
+    for canal in CANALES_INTERES:
+        for cond in CONDICIONES:
+            sub = df[(df["canal"] == canal) & (df["condicion"] == cond)]
+            ctrl = sub[sub["grupo"] == "control"][col_media].dropna().values
+            alc  = sub[sub["grupo"] == "alcoholic"][col_media].dropna().values
+            if len(ctrl) < 2 or len(alc) < 2:
                 continue
-            print(f"\n  Método {metodo} — medida {medida}:")
-            print(f"    {'Canal':<6}{'Condición':<12}"
-                  f"{'Control':>10}{'Alcohólico':>12}{'Razón C/A':>12}")
-            print("    " + "-" * 50)
-            for _, r in sub.iterrows():
-                print(f"    {r['canal']:<6}{r['condicion']:<12}"
-                      f"{r['control_media']:>+10.2f}{r['alcoholic_media']:>+12.2f}"
-                      f"{r['razon']:>11.2f}x")
-    print("=" * 78)
-    return comp
+            mc, sc = ctrl.mean(), ctrl.std(ddof=1)
+            ma, sa = alc.mean(), alc.std(ddof=1)
+            d = cohens_d(ctrl, alc)
+            print(f"  {canal:<6}{cond:<12}"
+                  f"{mc:>+7.2f} +- {sc:>4.2f}{ma:>+8.2f} +- {sa:>4.2f}"
+                  f"{mc-ma:>+9.2f}{d:>7.2f}{len(ctrl):>7}{len(alc):>7}")
 
 
 # =============================================================================
-# VISUALIZACIÓN
+# VISUALIZACION — por hemisferio
 # =============================================================================
 
-def graficar_amplitud_pico(df_pico: pd.DataFrame, metodo: str,
-                            col_amp: str = "amp_ventana"):
-    """Boxplots de la amplitud del pico por grupo, por canal y condición."""
+def graficar_boxplots(df_pico, metodo, col_amp, ventana_label,
+                      canales, hemi_label, out_file):
+    """Boxplots de la metrica por grupo, por canal y condicion."""
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
     np.random.seed(42)
+    df = df_pico[df_pico["metodo"] == metodo]
 
     fig, axes = plt.subplots(
-        len(CONDICIONES), len(CANALES_INTERES),
-        figsize=(5 * len(CANALES_INTERES), 4 * len(CONDICIONES)),
+        len(CONDICIONES), len(canales),
+        figsize=(5 * len(canales), 4.5 * len(CONDICIONES)),
         sharey=False
     )
     fig.suptitle(
-        f"Amplitud del pico del PE por sujeto — método {metodo}\n"
-        f"Máximo positivo en ventana {VENTANA_ANALISIS[0]}–{VENTANA_ANALISIS[1]} ms",
+        f"{ventana_label} por sujeto — metodo {metodo} — "
+        f"hemisferio {hemi_label}\n"
+        f"Metrica: {col_amp}",
         fontsize=13
     )
 
     for fila, cond in enumerate(CONDICIONES):
-        for col, canal in enumerate(CANALES_INTERES):
-            ax = axes[fila][col]
+        for col_idx, canal in enumerate(canales):
+            ax = axes[fila][col_idx]
             datos, etiquetas, cols_bp = [], [], []
             for grupo in ["control", "alcoholic"]:
-                vals = df_pico[(df_pico["canal"] == canal) &
-                               (df_pico["condicion"] == cond) &
-                               (df_pico["grupo"] == grupo)][col_amp].dropna().values
+                vals = df[(df["canal"] == canal) &
+                          (df["condicion"] == cond) &
+                          (df["grupo"] == grupo)][col_amp].dropna().values
                 datos.append(vals)
                 m = np.mean(vals) if len(vals) else np.nan
                 sd = np.std(vals, ddof=1) if len(vals) > 1 else np.nan
-                etiquetas.append(f"{grupo.capitalize()}\nn={len(vals)}\n{m:+.2f}±{sd:.2f}")
+                etiquetas.append(
+                    f"{grupo.capitalize()}\nn={len(vals)}\n{m:+.2f}+-{sd:.2f}")
                 cols_bp.append(colores[grupo])
 
             bp = ax.boxplot(datos, patch_artist=True,
@@ -318,104 +253,51 @@ def graficar_amplitud_pico(df_pico: pd.DataFrame, metodo: str,
             ax.axhline(0, color="black", linewidth=0.6, linestyle="--", alpha=0.5)
             ax.set_xticks([1, 2]); ax.set_xticklabels(etiquetas, fontsize=8)
             ax.set_title(f"Canal: {canal}\n{cond}", fontsize=10)
-            ax.set_ylabel("Amplitud pico (µV)")
+            ax.set_ylabel(f"{col_amp} (uV)")
             ax.grid(True, axis="y", alpha=0.3)
 
     plt.tight_layout()
-    out = f"../outputs/figura_pico_amplitud_{metodo}.png"
-    plt.savefig(out, dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
-    print(f"  Figura guardada: '{out}'")
+    print(f"  Figura guardada: '{out_file}'")
 
 
-def graficar_latencia_pico(df_all: pd.DataFrame, metodo_ref: str = "homogeneo"):
-    """
-    Histogramas de latencia del MÁXIMO GLOBAL por grupo. Muestra que el pico
-    global se dispersa (P1 ~100 ms, onda lenta tardía) y rara vez cae en la
-    ventana del paper, justificando el uso de una ventana de análisis.
-    """
-    df_pico = df_all[df_all["metodo"] == metodo_ref]
+def graficar_latencia(df_all, metodo, col_lat, ventana_label,
+                      canales, hemi_label, out_file):
+    """Histogramas de latencia del maximo por grupo."""
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
+    df = df_all[df_all["metodo"] == metodo]
 
     fig, axes = plt.subplots(
-        len(CONDICIONES), len(CANALES_INTERES),
-        figsize=(5 * len(CANALES_INTERES), 4 * len(CONDICIONES)),
+        len(CONDICIONES), len(canales),
+        figsize=(5 * len(canales), 4.5 * len(CONDICIONES)),
         sharex=True
     )
     fig.suptitle(
-        f"Distribución de latencias del máximo global — método {metodo_ref}\n"
-        f"Líneas punteadas: ventana clásica {VENTANA_PAPER[0]}–{VENTANA_PAPER[1]} ms "
-        "(Zhang et al.)",
+        f"Latencia del maximo — {ventana_label} — metodo {metodo} — "
+        f"hemisferio {hemi_label}",
         fontsize=13
     )
 
     for fila, cond in enumerate(CONDICIONES):
-        for col, canal in enumerate(CANALES_INTERES):
-            ax = axes[fila][col]
+        for col_idx, canal in enumerate(canales):
+            ax = axes[fila][col_idx]
             for grupo in ["control", "alcoholic"]:
-                lats = df_pico[(df_pico["canal"] == canal) &
-                               (df_pico["condicion"] == cond) &
-                               (df_pico["grupo"] == grupo)]["lat_global"].dropna().values
-                ax.hist(lats, bins=20, alpha=0.5, color=colores[grupo],
+                lats = df[(df["canal"] == canal) &
+                          (df["condicion"] == cond) &
+                          (df["grupo"] == grupo)][col_lat].dropna().values
+                ax.hist(lats, bins=15, alpha=0.5, color=colores[grupo],
                         label=grupo.capitalize(), density=True)
-            for xline in VENTANA_PAPER:
-                ax.axvline(xline, color="#f59e0b", linestyle="--", linewidth=1.4)
             ax.set_title(f"Canal: {canal}\n{cond}", fontsize=10)
             ax.set_xlabel("Latencia (ms)"); ax.set_ylabel("Densidad")
             ax.grid(True, alpha=0.3)
-            if fila == 0 and col == 0:
+            if fila == 0 and col_idx == 0:
                 ax.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_pico_latencia.png", dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_pico_latencia.png'")
-
-
-def graficar_comparacion_grupos(comp: pd.DataFrame, metodo: str = "homogeneo"):
-    """
-    Barras de la amplitud media de cada grupo (control vs alcohólico) por canal,
-    medida en ventana, con la razón C/A anotada encima. Lectura intuitiva del
-    tamaño de la diferencia sin estadística.
-    """
-    sub = comp[(comp["metodo"] == metodo) & (comp["medida"] == "ventana")]
-    colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
-
-    fig, axes = plt.subplots(1, len(CONDICIONES),
-                             figsize=(7 * len(CONDICIONES), 5))
-    if len(CONDICIONES) == 1:
-        axes = [axes]
-    fig.suptitle(
-        f"Amplitud media del c240 por grupo — método {metodo}, ventana "
-        f"{VENTANA_ANALISIS[0]}–{VENTANA_ANALISIS[1]} ms\n"
-        "Número sobre las barras: razón control / alcohólico",
-        fontsize=13
-    )
-    x = np.arange(len(CANALES_INTERES)); ancho = 0.38
-
-    for ax, cond in zip(axes, CONDICIONES):
-        sc = sub[sub["condicion"] == cond].set_index("canal").reindex(CANALES_INTERES)
-        ctrl = sc["control_media"].values
-        alc  = sc["alcoholic_media"].values
-        razon = sc["razon"].values
-        ax.bar(x - ancho/2, ctrl, ancho, label="Control",
-               color=colores["control"], alpha=0.8)
-        ax.bar(x + ancho/2, alc, ancho, label="Alcohólico",
-               color=colores["alcoholic"], alpha=0.8)
-        for xi, (c, r) in enumerate(zip(ctrl, razon)):
-            if not np.isnan(r):
-                ax.text(xi, c + 0.15, f"{r:.1f}x", ha="center",
-                        fontsize=9, fontweight="bold")
-        ax.set_xticks(x); ax.set_xticklabels(CANALES_INTERES)
-        ax.set_title(f"Condición: {cond}", fontsize=11)
-        ax.set_ylabel("Amplitud media del pico (µV)")
-        ax.legend(fontsize=10); ax.grid(True, axis="y", alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig("../outputs/figura_comparacion_grupos.png",
-                dpi=150, bbox_inches="tight")
-    plt.show()
-    print("  Figura guardada: 'figura_comparacion_grupos.png'")
+    print(f"  Figura guardada: '{out_file}'")
 
 
 # =============================================================================
@@ -424,53 +306,65 @@ def graficar_comparacion_grupos(comp: pd.DataFrame, metodo: str = "homogeneo"):
 
 if __name__ == "__main__":
 
-    print("=" * 72)
-    print("TPS — Potenciales Evocados Visuales en Alcoholismo")
-    print("Script 05: Extracción del Pico (Homogéneo vs Inhomogéneo)")
-    print("=" * 72)
-    print(f"\nMedida GLOBAL : máximo positivo desde {T_MIN_MS} ms (sin ventana).")
-    print(f"Medida VENTANA: máximo positivo en {VENTANA_ANALISIS[0]}–"
-          f"{VENTANA_ANALISIS[1]} ms.")
+    print("=" * 76)
+    print("TPS -- Potenciales Evocados Visuales en Alcoholismo")
+    print("Script 05: Extraccion de Metricas del c240 (y positividad tardia)")
+    print("=" * 76)
+    print(f"\nVentana PRIMARIA (c240):      {V_C240[0]}-{V_C240[1]} ms  "
+          "(Zhang et al. 1997)")
+    print(f"Ventana SECUNDARIA (c320):    {V_C320[0]}-{V_C320[1]} ms  "
+          "(positividad tardia)")
+    print(f"Metrica principal: MEDIA en ventana")
 
-    # Extraer picos de ambos métodos
+    # Extraer metricas de ambos metodos
     tablas = []
     for metodo, ruta in METODOS.items():
         if not ruta.exists():
             raise FileNotFoundError(
-                f"No se encontró '{ruta}'. Corré primero el Script 04.")
+                f"No se encontro '{ruta}'. Corre primero el Script 04.")
         print(f"\nCargando '{ruta}'...")
         pe = pd.read_parquet(ruta)
-        tablas.append(extraer_todos_picos(pe, metodo))
+        print(f"  Sujetos: {pe['sujeto'].nunique()} "
+              f"({pe[pe['grupo']=='alcoholic']['sujeto'].nunique()} alc + "
+              f"{pe[pe['grupo']=='control']['sujeto'].nunique()} ctrl)")
+        tablas.append(extraer_todos(pe, metodo))
 
     df_all = pd.concat(tablas, ignore_index=True)
     df_all.to_csv(SALIDA_CSV, index=False)
-    print(f"\nPicos guardados en '{SALIDA_CSV}'  ({len(df_all)} filas)")
+    print(f"\nMetricas guardadas en '{SALIDA_CSV}'  ({len(df_all)} filas)")
 
-    # % de máximos globales que caen en la ventana clásica del paper
-    print("\n% de máximos GLOBALES dentro de 220–260 ms (ventana del paper):")
-    pct = (df_all.groupby(["metodo", "grupo"])["global_en_ventana_paper"]
-           .mean().mul(100).round(1))
-    print(pct.to_string())
+    # Resumen descriptivo — homogeneo (principal)
+    imprimir_resumen(df_all, "homogeneo", "media_c240",
+                     f"c240 ({V_C240[0]}-{V_C240[1]} ms)")
+    imprimir_resumen(df_all, "homogeneo", "media_c320",
+                     f"positividad tardia ({V_C320[0]}-{V_C320[1]} ms)")
 
-    # Jerarquía por método (sobre la medida en ventana)
-    for metodo in METODOS:
-        n2, n3 = calcular_jerarquia(df_all[df_all["metodo"] == metodo],
-                                    col_amp="amp_ventana", col_lat="lat_ventana")
-        imprimir_jerarquia(n2, n3, f"método {metodo.upper()} (ventana 200–350 ms)")
+    # Graficos — divididos por hemisferio
+    print("\nGenerando graficos...")
+    for canales, label, sufijo in [
+        (CANALES_DERECHO,   "derecho",   "derecho"),
+        (CANALES_IZQUIERDO, "izquierdo", "izquierdo"),
+    ]:
+        # Boxplots c240 — homogeneo
+        graficar_boxplots(
+            df_all, "homogeneo", "media_c240",
+            f"c240 ({V_C240[0]}-{V_C240[1]} ms)",
+            canales, label,
+            f"figura_boxplot_{sufijo}_c240_hom.png")
 
-    # Comparación entre grupos (razón de medias)
-    comp = comparar_grupos(df_all)
+        # Boxplots c320 — homogeneo
+        graficar_boxplots(
+            df_all, "homogeneo", "media_c320",
+            f"c320 ({V_C320[0]}-{V_C320[1]} ms)",
+            canales, label,
+            f"figura_boxplot_{sufijo}_c320_hom.png")
 
-    # Gráficos
-    print("\nGenerando gráficos...")
-    for metodo in METODOS:
-        graficar_amplitud_pico(df_all[df_all["metodo"] == metodo], metodo,
-                               col_amp="amp_ventana")
-    graficar_latencia_pico(df_all, metodo_ref="homogeneo")
-    graficar_comparacion_grupos(comp, metodo="homogeneo")
+        # Latencia c240 — homogeneo
+        graficar_latencia(
+            df_all, "homogeneo", "lat_max_c240",
+            f"c240 ({V_C240[0]}-{V_C240[1]} ms)",
+            canales, label,
+            f"figura_latencia_{sufijo}_c240.png")
 
     print("\n[OK] Script 05 finalizado.")
-    print("\nPróximo paso:")
-    print("  - Mirá que la razón C/A se mantenga > 1 tanto en 'global' como en")
-    print("    'ventana' (robustez de la conclusión).")
-    print("  - El Script 06 corre el análisis final sobre 'amp_ventana'.")
+    print("\nProximo paso: Script 06 (estadistica).")
