@@ -1,0 +1,10 @@
+# GUI de análisis ERP (componente c240/VMP) — PySide6 + pyqtgraph
+# Instalar:  python -m pip install -r requirements.txt
+# Ejecutar:  python gui/app.py
+
+PySide6>=6.6
+pyqtgraph>=0.13
+pandas>=2.0
+numpy>=1.24
+scipy>=1.10
+pyarrow>=12.0      # lectura de los .parquet de outputs/
