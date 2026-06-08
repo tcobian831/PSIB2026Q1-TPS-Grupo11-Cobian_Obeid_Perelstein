@@ -365,6 +365,13 @@ if __name__ == "__main__":
             f"c240 ({V_C240[0]}-{V_C240[1]} ms)",
             canales, label,
             f"figura_latencia_{sufijo}_c240.png")
+        
+        # Latencia c320 — homogeneo
+        graficar_latencia(
+            df_all, "homogeneo", "lat_max_c320",
+            f"c320 ({V_C320[0]}-{V_C320[1]} ms)",
+            canales, label,
+            f"figura_latencia_{sufijo}_c320.png")
 
     print("\n[OK] Script 05 finalizado.")
     print("\nProximo paso: Script 06 (estadistica).")
