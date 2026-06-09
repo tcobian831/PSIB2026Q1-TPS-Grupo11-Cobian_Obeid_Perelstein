@@ -435,10 +435,10 @@ def graficar_barras(tab, df, col, ventana_label,
     if len(CONDICIONES) == 1:
         axes = [axes]
     fig.suptitle(
-        f"{ventana_label} — metodo {METODO_PRINCIPAL} — "
-        f"hemisferio {hemi_label}\n"
-        f"Barras de error: +- SEM  |  '+': significativo tras FDR (p<0.05)",
-        fontsize=13
+        f"Diferencia Control - Alcoholico por hemisferio — ventana {ventana_label}\n"
+        "Azul oscuro = derecho  |  Azul claro = izquierdo  |  "
+        "asim = dif. derecho - dif. izquierdo",
+        fontsize=12
     )
     x = np.arange(len(canales))
     ancho = 0.38
@@ -554,20 +554,10 @@ def graficar_lateralizacion(df, col=COL_MEDIA_C240,
  
         for xi, (asim, dD, dI, sD, sI) in enumerate(
                 zip(asimetrias, difs_D, difs_I, sems_D, sems_I)):
-            ytop = max(dD + sD, dI + sI) + 0.4
- 
-            if asim > 0.5:
-                texto       = f"+{asim:.1f} uV\n-> Zhang"
-                color_texto = "#15803d"
-            elif asim < -0.5:
-                texto       = f"{asim:.1f} uV\n-> izq."
-                color_texto = "#b91c1c"
-            else:
-                texto       = f"{asim:.1f} uV\n-> bilat."
-                color_texto = "#92400e"
- 
-            ax.text(xi, ytop, texto, ha="center", va="bottom",
-                    fontsize=8, color=color_texto, fontweight="bold")
+            ytop = max(dD + sD, dI + sI) + 0.15
+            ax.text(xi, ytop, f"asim: {asim:+.1f} uV",
+                    ha="center", va="bottom",
+                    fontsize=10, color="black")
  
         ax.axhline(0, color="black", linewidth=0.6)
         ax.set_xticks(x)
