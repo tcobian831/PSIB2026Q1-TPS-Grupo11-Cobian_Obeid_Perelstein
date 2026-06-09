@@ -47,7 +47,7 @@ FS = 256  # Hz
 N_SAMPLES = 256
 
 # Canales de interés (temporo-occipitales derechos, según Zhang et al. 1997)
-CANALES_INTERES = ["P8", "PO8", "T8", "TP8", "P7", "P07", "T7", "TP7"]
+CANALES_INTERES = ["P8", "PO8", "T8", "TP8", "P7", "PO7", "T7", "TP7"]
 
 # Condiciones de interés
 CONDICION_S1 = "S1 obj"

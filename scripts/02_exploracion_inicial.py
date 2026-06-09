@@ -44,7 +44,9 @@ FS        = 256    # Frecuencia de muestreo (Hz)
 N_SAMPLES = 256    # Muestras por trial
 
 # Canales de interés
-CANALES_INTERES = ["P8", "PO8", "T8", "TP8"]
+CANALES_DERECHO   = ["P8",  "PO8",  "T8",  "TP8"]
+CANALES_IZQUIERDO = ["P7",  "PO7",  "T7",  "TP7"]
+CANALES_INTERES   = CANALES_DERECHO + CANALES_IZQUIERDO
 
 # Cuántos trials de ejemplo mostrar por grupo en el dominio del tiempo
 N_TRIALS_EJEMPLO = 5
@@ -125,26 +127,41 @@ def graficar_señales_tiempo(df: pd.DataFrame):
     print("  Figura guardada: 'figura_exploracion_tiempo.png'")
 
 
-def graficar_señales_multicanal(df: pd.DataFrame):
+def graficar_señales_multicanal(df: pd.DataFrame, 
+                                 canales: list, 
+                                 titulo_sufijo: str,
+                                 nombre_archivo: str):
     """
-    Grafica un trial de ejemplo en los 4 canales de interés,
-    para control y alcohólico. Permite comparar la morfología
-    de la señal cruda entre canales.
+    Grafica un trial de ejemplo en los canales especificados,
+    para control y alcohólico.
     """
-    fig, axes = plt.subplots(2, len(CANALES_INTERES),
-                             figsize=(4 * len(CANALES_INTERES), 6),
+    fig, axes = plt.subplots(2, len(canales),
+                             figsize=(4 * len(canales), 6),
                              sharex=True)
 
+    # Identificar el sujeto y trial de ejemplo para el título
+    ejemplo = df[
+        (df["grupo"] == "control") &
+        (df["canal"] == canales[0]) &
+        (df["condicion"] == "S1 obj")
+    ]
+    sujeto_ej = ejemplo["sujeto"].iloc[0]
+    trial_ej  = ejemplo[
+        ejemplo["sujeto"] == sujeto_ej
+    ]["trial_num"].iloc[0]
+
     fig.suptitle(
-        "Señal EEG cruda — Canales de interés — Un trial de ejemplo",
-        fontsize=13
+        f"Señal EEG cruda — {titulo_sufijo}\n"
+        f"Sujeto de ejemplo: {sujeto_ej} (control) — "
+        f"Trial: {trial_ej} — Condición: S1 obj",
+        fontsize=12
     )
 
     tiempo_ms = np.arange(N_SAMPLES) / FS * 1000
     colores   = {"control": "#2563eb", "alcoholic": "#dc2626"}
 
     for fila, grupo in enumerate(["control", "alcoholic"]):
-        for col, canal in enumerate(CANALES_INTERES):
+        for col, canal in enumerate(canales):
             ax = axes[fila][col]
 
             subset = df[
@@ -178,16 +195,18 @@ def graficar_señales_multicanal(df: pd.DataFrame):
             ax.grid(True, alpha=0.25)
 
             if col == 0:
-                ax.set_ylabel(f"{grupo.capitalize()}\nAmplitud (µV)", fontsize=9)
+                ax.set_ylabel(f"{grupo.capitalize()}\nAmplitud (µV)", 
+                              fontsize=9)
             if fila == 0:
                 ax.set_title(f"Canal: {canal}", fontsize=10)
             if fila == 1:
                 ax.set_xlabel("Tiempo (ms)", fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_exploracion_multicanal.png", dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{nombre_archivo}", 
+                dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_exploracion_multicanal.png'")
+    print(f"  Figura guardada: '{nombre_archivo}'")
 
 
 # =============================================================================
@@ -251,7 +270,8 @@ def calcular_psd_promedio(df: pd.DataFrame, canal: str,
     return freqs, psd_mean, psd_sem
 
 
-def graficar_psd(df: pd.DataFrame):
+def graficar_psd(df: pd.DataFrame, canales: list,
+                 titulo_sufijo: str, nombre_archivo: str):
     """
     Grafica el Power Spectral Density (PSD) de las señales crudas.
     Estimado por el método de Welch (ventanas de 128 muestras, 50% solapamiento).
@@ -261,12 +281,12 @@ def graficar_psd(df: pd.DataFrame):
     - Derecho: zoom en la banda de interés (0-30 Hz)
     """
     fig, axes = plt.subplots(
-        len(CANALES_INTERES), 2,
-        figsize=(14, 4 * len(CANALES_INTERES))
+        len(canales), 2,
+        figsize=(14, 4 * len(canales))
     )
 
     fig.suptitle(
-        "Espectro de Potencia (PSD) — Señales EEG crudas\n"
+        f"Espectro de Potencia (PSD) — Señales EEG crudas — {titulo_sufijo}\n"
         "Estimado por el método de Welch "
         "(ventanas de 128 muestras, solapamiento 50%)",
         fontsize=13
@@ -274,37 +294,37 @@ def graficar_psd(df: pd.DataFrame):
 
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
 
-    for fila, canal in enumerate(CANALES_INTERES):
+    for fila, canal in enumerate(canales):
         ax_full = axes[fila][0]
         ax_zoom = axes[fila][1]
 
         for grupo in ["control", "alcoholic"]:
             print(f"    Calculando PSD: {grupo} — {canal}...")
             freqs, psd_mean, psd_sem = calcular_psd_promedio(
-                df, canal, grupo, n_sujetos=15
+                df, canal, grupo
             )
-            psd_db  = 10 * np.log10(psd_mean + 1e-12)
-            sem_db  = 10 * np.log10(psd_mean + psd_sem + 1e-12) - psd_db
-            color   = colores[grupo]
+            psd_db = 10 * np.log10(psd_mean + 1e-12)
+            sem_db = 10 * np.log10(psd_mean + psd_sem + 1e-12) - psd_db
+            color  = colores[grupo]
 
             for ax in [ax_full, ax_zoom]:
                 ax.plot(freqs, psd_db, color=color,
-                       linewidth=1.8, label=grupo.capitalize())
+                        linewidth=1.8, label=grupo.capitalize())
                 ax.fill_between(freqs,
-                               psd_db - sem_db,
-                               psd_db + sem_db,
-                               color=color, alpha=0.15)
+                                psd_db - sem_db,
+                                psd_db + sem_db,
+                                color=color, alpha=0.15)
 
         # Panel izquierdo — espectro completo
         ax_full.axvspan(0, 30, alpha=0.12, color="green",
-                       label="Banda conservada (0-30 Hz)")
+                        label="Banda conservada (0-30 Hz)")
         ax_full.axvline(30, color="green", linestyle="--",
-                       linewidth=1.5, label="Corte superior (30 Hz)")
+                        linewidth=1.5, label="Corte superior (30 Hz)")
         ax_full.axvline(0.1, color="blue", linestyle=":",
-                       linewidth=1.2, label="Corte inferior (0.1 Hz)")
+                        linewidth=1.2, label="Corte inferior (0.1 Hz)")
         ax_full.set_xlim([0, FS / 2])
-        ax_full.set_title(f"Canal {canal} — Espectro completo (0–128 Hz)",
-                         fontsize=10)
+        ax_full.set_title(f"Canal {canal} — Espectro completo (0-128 Hz)",
+                          fontsize=10)
         ax_full.set_xlabel("Frecuencia (Hz)")
         ax_full.set_ylabel("Potencia (dB)", fontsize=9)
         ax_full.grid(True, alpha=0.3)
@@ -312,12 +332,11 @@ def graficar_psd(df: pd.DataFrame):
             ax_full.legend(fontsize=8, loc="upper right")
 
         # Panel derecho — zoom banda de interés
-        ax_zoom.axvspan(0, 30, alpha=0.12, color="green",
-                       label="Banda conservada (0-30 Hz)")
+        ax_zoom.axvspan(0, 30, alpha=0.12, color="green")
         ax_zoom.axvline(30, color="green", linestyle="--", linewidth=1.5)
         ax_zoom.set_xlim([0, 35])
-        ax_zoom.set_title(f"Canal {canal} — Zoom banda de interés (0–35 Hz)",
-                         fontsize=10)
+        ax_zoom.set_title(f"Canal {canal} — Zoom banda de interés (0-35 Hz)",
+                          fontsize=10)
         ax_zoom.set_xlabel("Frecuencia (Hz)")
         ax_zoom.set_ylabel("Potencia (dB)", fontsize=9)
         ax_zoom.grid(True, alpha=0.3)
@@ -326,40 +345,42 @@ def graficar_psd(df: pd.DataFrame):
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.subplots_adjust(hspace=0.5)
-    plt.savefig("../outputs/figura_exploracion_psd.png",
+    plt.savefig(f"../outputs/{nombre_archivo}",
                 dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_exploracion_psd.png'")
+    print(f"  Figura guardada: '{nombre_archivo}'")
 
 
 # =============================================================================
 # FUNCIONES — ANÁLISIS DE ARTEFACTOS
 # =============================================================================
 
-def graficar_distribucion_amplitudes(df: pd.DataFrame):
+def graficar_distribucion_amplitudes(df: pd.DataFrame, canales: list,
+                                      titulo_sufijo: str,
+                                      nombre_archivo: str):
     """
     Grafica la distribución de amplitudes de las señales crudas.
 
     Muestra un histograma del valor_uV de todas las muestras de los
-    canales de interés. Permite identificar:
+    canales especificados. Permite identificar:
         - Si la distribución es aproximadamente gaussiana (esperado en EEG limpio)
         - La presencia de valores extremos (artefactos)
         - El rango típico de amplitud, que justifica el umbral de ±100 µV
           usado en el rechazo de artefactos del Script 03
     """
-    fig, axes = plt.subplots(1, len(CANALES_INTERES),
-                             figsize=(4 * len(CANALES_INTERES), 4),
+    fig, axes = plt.subplots(1, len(canales),
+                             figsize=(4 * len(canales), 4),
                              sharey=True)
 
     fig.suptitle(
-        "Distribución de amplitudes — Señales crudas\n"
+        f"Distribución de amplitudes — Señales crudas — {titulo_sufijo}\n"
         "Líneas rojas: umbral de rechazo de artefactos (±100 µV)",
         fontsize=13
     )
 
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
 
-    for col, canal in enumerate(CANALES_INTERES):
+    for col, canal in enumerate(canales):
         ax = axes[col]
 
         for grupo in ["control", "alcoholic"]:
@@ -372,9 +393,8 @@ def graficar_distribucion_amplitudes(df: pd.DataFrame):
                     color=colores[grupo], label=grupo.capitalize(),
                     density=True)
 
-        # Umbral de artefactos
         ax.axvline( 100, color="red", linestyle="--",
-                   linewidth=1.2, label="±100 µV")
+                    linewidth=1.2, label="±100 µV")
         ax.axvline(-100, color="red", linestyle="--", linewidth=1.2)
 
         ax.set_title(f"Canal: {canal}", fontsize=11)
@@ -383,14 +403,14 @@ def graficar_distribucion_amplitudes(df: pd.DataFrame):
             ax.set_ylabel("Densidad")
         ax.set_xlim([-200, 200])
         ax.grid(True, alpha=0.3)
-
         if col == 0:
             ax.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_exploracion_artefactos.png", dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{nombre_archivo}",
+                dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_exploracion_artefactos.png'")
+    print(f"  Figura guardada: '{nombre_archivo}'")
 
 
 # =============================================================================
@@ -459,20 +479,55 @@ if __name__ == "__main__":
     print("  Graficando trials individuales (P8, S1 obj)...")
     graficar_señales_tiempo(df_canales)
 
-    print("  Graficando señales en los 4 canales de interés...")
-    graficar_señales_multicanal(df_canales)
+    print("  Graficando señales en los 8 canales de interés...")
+    
+    graficar_señales_multicanal(
+        df,
+        canales=CANALES_DERECHO,
+        titulo_sufijo="Hemisferio derecho (P8, PO8, T8, TP8)",
+        nombre_archivo="figura_exploracion_multicanal_derecho.png"
+    )
+
+    graficar_señales_multicanal(
+        df,
+        canales=CANALES_IZQUIERDO,
+        titulo_sufijo="Hemisferio izquierdo (P7, PO7, T7, TP7)",
+        nombre_archivo="figura_exploracion_multicanal_izquierdo.png"
+    )
 
     # -------------------------------------------------------------------------
     # Análisis en el dominio de la frecuencia
     # -------------------------------------------------------------------------
     print("\n--- Dominio de la frecuencia (PSD - Método de Welch) ---")
-    graficar_psd(df_canales)
+    
+    graficar_psd(df_canales,
+             canales=CANALES_DERECHO,
+             titulo_sufijo="Hemisferio derecho (P8, PO8, T8, TP8)",
+             nombre_archivo="figura_exploracion_psd_derecho.png")
+
+    graficar_psd(df_canales,
+             canales=CANALES_IZQUIERDO,
+             titulo_sufijo="Hemisferio izquierdo (P7, PO7, T7, TP7)",
+             nombre_archivo="figura_exploracion_psd_izquierdo.png")
 
     # -------------------------------------------------------------------------
     # Análisis de artefactos
     # -------------------------------------------------------------------------
     print("\n--- Distribución de amplitudes ---")
-    graficar_distribucion_amplitudes(df_canales)
+    
+    graficar_distribucion_amplitudes(
+    df_canales,
+    canales=CANALES_DERECHO,
+    titulo_sufijo="Hemisferio derecho (P8, PO8, T8, TP8)",
+    nombre_archivo="figura_exploracion_artefactos_derecho.png"
+    )
+
+    graficar_distribucion_amplitudes(
+    df_canales,
+    canales=CANALES_IZQUIERDO,
+    titulo_sufijo="Hemisferio izquierdo (P7, PO7, T7, TP7)",
+    nombre_archivo="figura_exploracion_artefactos_izquierdo.png"
+    )
 
     # -------------------------------------------------------------------------
     # Conclusiones
