@@ -1,6 +1,6 @@
 # PSIB2026Q1-TPS-Grupo11-Cobian_Obeid_Perelstein
 
-Trabajo práctico integrador de Procesamiento de Señales e Imágenes Biomédicas. Este proyecto analiza potenciales evocados visuales en señales EEG del dataset UCI EEG Database, con foco en el componente c240/VMP asociado a memoria visual, comparando sujetos controles y sujetos con alcoholismo.
+Este proyecto fue desarrollado durante la cursada de la materia "Procesamiento de Señales e Imágenes Biomédica" del Instituto Tecnológico de Buenos Aires, y en el mismo analiza potenciales evocados visuales en señales EEG del dataset UCI EEG Database (https://archive.ics.uci.edu/dataset/121/eeg+database), con foco en el componente c240/VMP asociado a memoria visual, comparando sujetos controles y sujetos con alcoholismo.
 
 El análisis se centra en dos condiciones del paradigma de reconocimiento visual:
 
@@ -21,11 +21,9 @@ Carpetas principales:
 
 ```text
 scripts/                    códigos del pipeline principal
-scripts/legacy/             códigos preliminares o de respaldo, si corresponde
 gui/                        interfaz gráfica de exploración del c240/VMP
 data/eeg_full/              dataset original UCI EEG, no versionado
 outputs/                    tablas, métricas y archivos procesados generados
-outputs/figures/            figuras seleccionadas para documentación, si corresponde
 ```
 
 ## Requisitos
@@ -415,11 +413,6 @@ tabla_lateralizacion.csv:
 análisis de lateralización entre hemisferio derecho e izquierdo.
 ```
 
-## Códigos heredados
-
-La carpeta `scripts/legacy/` puede contener versiones preliminares usadas durante el desarrollo. No forman parte del pipeline final, pero se conservan como respaldo.
-
-Los scripts oficiales del pipeline son los numerados del 01 al 06.
 
 ## Nota sobre los datos
 
