@@ -4,14 +4,27 @@ TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
 Grupo 11: Cobián, Obeid, Perelstein
 
-Script 03: Preprocesamiento de Señales EEG
+Script 03: Preprocesamiento de Señales EEG  [VERSIÓN 2 — modificado]
 ==============================================================================
 
 Pasos:
     1. Filtro pasa-banda Butterworth (0.1 – 30 Hz)
-    2. Corrección de baseline (primeros 100 ms)
+    2. Corrección de baseline (primeros 50 ms)
     3. Selección de condiciones y canales de interés
     4. Rechazo de trials con artefactos (umbral ±100 µV)
+
+Cambios respecto a la versión anterior:
+    - Se agregaron los canales homólogos del HEMISFERIO IZQUIERDO
+      (P7, PO7, T7, TP7) para poder replicar y comparar la asimetría
+      hemisférica reportada en Zhang et al. (1997), quienes encontraron
+      que las diferencias entre grupos se concentran principalmente en
+      el hemisferio derecho.
+
+    Hemisferio derecho (referencia del paper):  P8, PO8, T8, TP8
+    Hemisferio izquierdo (homólogos):           P7, PO7, T7, TP7
+
+    P8 es el electrodo de referencia del paper (mayor amplitud del VMP).
+    Su homólogo izquierdo P7 permite la comparación directa.
 
 Entrada:  eeg_data_cargado.parquet  (generado por Script 01)
 Salida:   eeg_data_preprocesado.parquet
@@ -43,8 +56,22 @@ N_BASELINE = int(0.050 * FS)   # = 12 muestras (índices 0–11)
 # Umbral de rechazo de artefactos (µV)
 UMBRAL_UV = 100.0
 
-# Canales de interés (temporo-occipitales derechos)
-CANALES_INTERES = ["P8", "PO8", "T8", "TP8"]
+# ---------------------------------------------------------------------------
+# Canales de interés — hemisferio derecho (referencia del paper) + izquierdo
+#
+# Zhang et al. (1997) eligieron P8 como electrodo de referencia por tener la
+# mayor amplitud y morfología más consistente del VMP. El análisis estadístico
+# del paper se organizó en regiones; la diferencia entre grupos fue más fuerte
+# en el hemisferio derecho (temporal y frontal derechos).
+#
+# Agregamos los 4 homólogos izquierdos para poder REPLICAR y COMPARAR la
+# asimetría hemisférica: si nuestros datos muestran el mismo patrón que el
+# paper (derecho > izquierdo en la diferencia control − alcohólico), eso
+# fortalece nuestras conclusiones.
+# ---------------------------------------------------------------------------
+CANALES_DERECHO   = ["P8",  "PO8",  "T8",  "TP8"]   # hemisferio derecho
+CANALES_IZQUIERDO = ["P7",  "PO7",  "T7",  "TP7"]   # homólogos izquierdos
+CANALES_INTERES   = CANALES_DERECHO + CANALES_IZQUIERDO   # 8 canales en total
 
 # Condiciones de interés
 CONDICIONES_INTERES = ["S1 obj", "S2 nomatch"]
@@ -101,8 +128,6 @@ def aplicar_filtro(señal: np.ndarray, b: np.ndarray,
     Retorna:
         señal filtrada (mismo largo que la entrada)
     """
-    # filtfilt necesita que la señal sea más larga que 3 * max(len(a), len(b))
-    # Con 256 muestras y orden 4 no hay problema
     return filtfilt(b, a, señal)
 
 
@@ -113,11 +138,11 @@ def corregir_baseline(señal: np.ndarray, n_baseline: int) -> np.ndarray:
 
     En ERPs, el baseline son los milisegundos previos al estímulo.
     Como en este dataset el estímulo ocurre en t=0 (muestra 0), usamos
-    los primeros ~100 ms como aproximación al pre-estímulo.
+    los primeros ~50 ms como aproximación al pre-estímulo.
 
     Args:
         señal:      array 1D de 256 muestras
-        n_baseline: cantidad de muestras a usar como baseline (ej: 25)
+        n_baseline: cantidad de muestras a usar como baseline (ej: 12)
 
     Retorna:
         señal corregida (media de baseline = 0)
@@ -145,12 +170,12 @@ def tiene_artefacto(señal: np.ndarray, umbral: float) -> bool:
 
 
 def preprocesar_trial(grupo_trial: pd.DataFrame,
-                      b: np.ndarray, a: np.ndarray) -> pd.DataFrame | None:
+                      b: np.ndarray, a: np.ndarray):
     """
     Aplica el pipeline completo de preprocesamiento a un trial de un canal.
 
     Pipeline:
-        señal cruda → filtro pasa-banda → corrección baseline → 
+        señal cruda → filtro pasa-banda → corrección baseline →
         → verificar artefactos → señal lista para ERP
 
     Args:
@@ -189,10 +214,10 @@ def preprocesar_trial(grupo_trial: pd.DataFrame,
 
 if __name__ == "__main__":
 
-    print("=" * 60)
+    print("=" * 64)
     print("TPS — Potenciales Evocados Visuales en Alcoholismo")
-    print("Script 03: Preprocesamiento")
-    print("=" * 60)
+    print("Script 03: Preprocesamiento  [v2 — 8 canales, 2 hemisferios]")
+    print("=" * 64)
 
     # -------------------------------------------------------------------------
     # Cargar datos del Script 01
@@ -210,16 +235,33 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     # Paso 1: Selección de condiciones y canales de interés
     # -------------------------------------------------------------------------
-    print(f"\nFiltrado de condiciones: {CONDICIONES_INTERES}")
-    print(f"Filtrado de canales:     {CANALES_INTERES}")
+    print(f"\nCanales seleccionados:")
+    print(f"  Hemisferio derecho:    {CANALES_DERECHO}")
+    print(f"  Hemisferio izquierdo:  {CANALES_IZQUIERDO}")
+    print(f"  Total: {len(CANALES_INTERES)} canales")
+    print(f"\nCondiciones: {CONDICIONES_INTERES}")
+
+    # Verificar que los canales izquierdos existen en el dataset
+    canales_disponibles = df["canal"].unique().tolist()
+    canales_faltantes = [c for c in CANALES_INTERES
+                         if c not in canales_disponibles]
+    if canales_faltantes:
+        print(f"\n  ADVERTENCIA: canales no encontrados en el dataset: "
+              f"{canales_faltantes}")
+        CANALES_INTERES = [c for c in CANALES_INTERES
+                           if c in canales_disponibles]
+        print(f"  Continuando con: {CANALES_INTERES}")
+    else:
+        print(f"  Todos los canales verificados en el dataset.")
 
     df = df[
         df["condicion"].isin(CONDICIONES_INTERES) &
         df["canal"].isin(CANALES_INTERES)
     ].copy()
 
-    print(f"  Filas tras filtrado: {len(df):,}")
-    print(f"  Trials únicos: {df.groupby(['sujeto','trial_num','canal']).ngroups:,}")
+    print(f"\n  Filas tras filtrado: {len(df):,}")
+    print(f"  Trials únicos: "
+          f"{df.groupby(['sujeto','trial_num','canal']).ngroups:,}")
 
     # -------------------------------------------------------------------------
     # Paso 2: Diseñar filtro Butterworth
@@ -235,10 +277,11 @@ if __name__ == "__main__":
     print("\nPreprocesando trials (filtro + baseline + rechazo artefactos)...")
 
     grupos = df.groupby(["sujeto", "trial_num", "canal"])
-    n_total    = len(grupos)
-    n_ok       = 0
+    n_total      = len(grupos)
+    n_ok         = 0
     n_rechazados = 0
-    resultados = []
+    trial_artefacto = None  # guardará un trial rechazado para el gráfico
+    resultados   = []
 
     for idx, (nombre, grupo) in enumerate(grupos):
         if idx % 5000 == 0:
@@ -251,6 +294,17 @@ if __name__ == "__main__":
             n_ok += 1
         else:
             n_rechazados += 1
+            # Guardar el primer trial rechazado para el gráfico
+            if trial_artefacto is None:
+                señal_art = grupo.sort_values("muestra")["valor_uV"].values.astype(float)
+                if len(señal_art) == 256 and np.any(np.abs(señal_art) > UMBRAL_UV):
+                    trial_artefacto = {
+                        "señal":     señal_art,
+                        "sujeto":    nombre[0],
+                        "trial_num": nombre[1],
+                        "canal":     nombre[2],
+                        "condicion": grupo["condicion"].iloc[0],
+                    }
 
     print(f"\nResultados del preprocesamiento:")
     print(f"  Trials procesados:  {n_ok:,}")
@@ -260,23 +314,30 @@ if __name__ == "__main__":
     df_proc = pd.concat(resultados, ignore_index=True)
 
     # -------------------------------------------------------------------------
-    # Paso 4: Verificación por grupo y condición
+    # Paso 4: Verificación por hemisferio, grupo y condición
     # -------------------------------------------------------------------------
-    print("\nDistribución de trials limpios por grupo y condición:")
+    print("\nDistribución de trials limpios por hemisferio, grupo y condición:")
+
+    df_proc["hemisferio"] = df_proc["canal"].apply(
+        lambda c: "derecho" if c in CANALES_DERECHO else "izquierdo"
+    )
+
     resumen = (
-        df_proc.groupby(["grupo", "condicion", "sujeto", "trial_num"])
+        df_proc.groupby(["hemisferio", "grupo", "condicion", "sujeto", "trial_num"])
         .size()
         .reset_index()
-        .groupby(["grupo", "condicion"])
+        .groupby(["hemisferio", "grupo", "condicion"])
         .size()
         .reset_index(name="n_trials")
     )
     print(resumen.to_string(index=False))
 
     # -------------------------------------------------------------------------
-    # Paso 5: Gráfico comparativo — señal cruda vs preprocesada
+    # Paso 5a: Gráfico comparativo — dos canales limpios (P8 y PO8)
     # -------------------------------------------------------------------------
     print("\nGenerando gráfico comparativo cruda vs preprocesada...")
+
+    tiempo_ms = np.arange(256) / FS * 1000
 
     sujeto_ej = df_proc[df_proc["grupo"] == "control"]["sujeto"].iloc[0]
     trial_ej  = df_proc[
@@ -285,75 +346,130 @@ if __name__ == "__main__":
         (df_proc["condicion"] == "S1 obj")
     ]["trial_num"].iloc[0]
 
-    señal_proc = df_proc[
-        (df_proc["sujeto"] == sujeto_ej) &
-        (df_proc["trial_num"] == trial_ej) &
-        (df_proc["canal"] == "P8")
-    ].sort_values("muestra")["valor_uV"].values
-
-    df_cruda_ej = df[
-        (df["sujeto"] == sujeto_ej) &
-        (df["trial_num"] == trial_ej) &
-        (df["canal"] == "P8")
-    ].sort_values("muestra")
-    señal_cruda = df_cruda_ej["valor_uV"].values
-
-    tiempo_ms = np.arange(256) / FS * 1000
-
-    # PSD de ambas señales
-    from scipy.signal import welch
-    freqs_c, psd_c = welch(señal_cruda, fs=FS, nperseg=128)
-    freqs_p, psd_p = welch(señal_proc,  fs=FS, nperseg=128)
-    psd_c_db = 10 * np.log10(psd_c + 1e-12)
-    psd_p_db = 10 * np.log10(psd_p + 1e-12)
-
-    fig, axes = plt.subplots(3, 1, figsize=(12, 9))
+    fig, axes = plt.subplots(3, 2, figsize=(16, 9), sharex=True)
     fig.suptitle(
-        f"Efecto del preprocesamiento — Canal P8 — "
-        f"Sujeto: {sujeto_ej} (control) — S1 obj",
+        f"Efecto del preprocesamiento — Sujeto: {sujeto_ej} (control) — "
+        f"Trial: {trial_ej} — S1 obj\n"
+        f"Izquierda: Canal P8  |  Derecha: Canal PO8",
         fontsize=12
     )
 
-    # Panel 1: señal cruda
-    axes[0].plot(tiempo_ms, señal_cruda, color="#64748b", linewidth=1)
-    axes[0].set_ylabel("Amplitud (µV)")
-    axes[0].set_title("Señal cruda")
-    axes[0].axhline(0, color="black", linewidth=0.5)
-    axes[0].axvline(0, color="gray", linestyle="--", linewidth=0.8)
-    axes[0].grid(True, alpha=0.3)
+    for col, canal in enumerate(["P8", "PO8"]):
+        señal_proc = df_proc[
+            (df_proc["sujeto"] == sujeto_ej) &
+            (df_proc["trial_num"] == trial_ej) &
+            (df_proc["canal"] == canal)
+        ].sort_values("muestra")["valor_uV"].values
 
-    # Panel 2: señal preprocesada
-    axes[1].plot(tiempo_ms, señal_proc, color="#2563eb", linewidth=1)
-    axes[1].set_ylabel("Amplitud (µV)")
-    axes[1].set_title(f"Señal preprocesada (Butterworth {F_LOW}–{F_HIGH} Hz + baseline)")
-    axes[1].axhline(0, color="black", linewidth=0.5)
-    axes[1].axvline(0, color="gray", linestyle="--", linewidth=0.8)
-    axes[1].axvspan(220, 260, alpha=0.15, color="orange", label="Ventana c240")
-    axes[1].legend(fontsize=9)
-    axes[1].grid(True, alpha=0.3)
+        señal_cruda = df[
+            (df["sujeto"] == sujeto_ej) &
+            (df["trial_num"] == trial_ej) &
+            (df["canal"] == canal)
+        ].sort_values("muestra")["valor_uV"].values
 
-    # Panel 3: diferencia cruda - preprocesada
-    diferencia = señal_cruda - señal_proc
-    axes[2].plot(tiempo_ms, diferencia, color="#dc2626", linewidth=1)
-    axes[2].axhline(0, color="black", linewidth=0.5)
-    axes[2].set_xlabel("Tiempo (ms)")
-    axes[2].set_ylabel("Amplitud (µV)")
-    axes[2].set_title(
-        "Diferencia (cruda − preprocesada) = ruido eliminado por el filtro\n"
-        "Lo que se ve acá es lo que el filtro Butterworth descartó"
-    )
-    axes[2].grid(True, alpha=0.3)
+        diferencia = señal_cruda[:len(señal_proc)] - señal_proc
+
+        # Fila 0: señal cruda
+        axes[0][col].plot(tiempo_ms, señal_cruda,
+                          color="#64748b", linewidth=1)
+        axes[0][col].set_title(f"Canal {canal} — Señal cruda", fontsize=10)
+        axes[0][col].set_ylabel("Amplitud (µV)")
+        axes[0][col].axhline(0, color="black", linewidth=0.5)
+        axes[0][col].grid(True, alpha=0.3)
+
+        # Fila 1: señal preprocesada
+        axes[1][col].plot(tiempo_ms, señal_proc,
+                          color="#2563eb", linewidth=1)
+        axes[1][col].set_title(
+            f"Canal {canal} — Preprocesada "
+            f"(Butterworth {F_LOW}–{F_HIGH} Hz + baseline)",
+            fontsize=10
+        )
+        axes[1][col].set_ylabel("Amplitud (µV)")
+        axes[1][col].axhline(0, color="black", linewidth=0.5)
+        axes[1][col].axvspan(220, 260, alpha=0.15,
+                             color="orange", label="Ventana c240")
+        axes[1][col].axvspan(290, 340, alpha=0.15,
+                             color="purple", label="Ventana c320")
+        axes[1][col].legend(fontsize=8)
+        axes[1][col].grid(True, alpha=0.3)
+
+        # Fila 2: diferencia
+        axes[2][col].plot(tiempo_ms[:len(diferencia)], diferencia,
+                          color="#dc2626", linewidth=1)
+        axes[2][col].axhline(0, color="black", linewidth=0.5)
+        axes[2][col].set_xlabel("Tiempo (ms)")
+        axes[2][col].set_ylabel("Amplitud (µV)")
+        axes[2][col].set_title(
+            f"Canal {canal} — Diferencia (cruda − preprocesada) = "
+            "componentes eliminados",
+            fontsize=10
+        )
+        axes[2][col].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_preprocesamiento.png",
+    plt.savefig("../outputs/figura_preprocesamiento_canales.png",
                 dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada como 'figura_preprocesamiento.png'")
-
+    print("  Figura guardada: 'figura_preprocesamiento_canales.png'")
 
     # -------------------------------------------------------------------------
-    # Guardar resultado
+    # Paso 5b: Gráfico de trial rechazado por artefacto
     # -------------------------------------------------------------------------
+    if trial_artefacto is not None:
+        fig, ax = plt.subplots(figsize=(12, 4))
+        señal_art = trial_artefacto["señal"]
+
+        # Aplicar filtro para mostrar cómo quedaría si no se rechazara
+        b, a = disenar_filtro_butterworth(F_LOW, F_HIGH, FS, ORDEN)
+        señal_art_filt = aplicar_filtro(señal_art, b, a)
+        señal_art_filt = corregir_baseline(señal_art_filt, N_BASELINE)
+
+        ax.plot(tiempo_ms, señal_art, color="#64748b",
+                linewidth=1, label="Señal cruda", zorder=2)
+        ax.plot(tiempo_ms, señal_art_filt, color="#2563eb",
+                linewidth=1, label="Tras filtro (sin rechazar)", zorder=3)
+        ax.axhline( UMBRAL_UV, color="red", linestyle="--",
+                   linewidth=1.5, label=f"Umbral +{UMBRAL_UV} µV", zorder=4)
+        ax.axhline(-UMBRAL_UV, color="red", linestyle="--",
+                   linewidth=1.5, label=f"Umbral -{UMBRAL_UV} µV", zorder=4)
+
+        # Marcar los puntos que superan el umbral
+        mask_art = np.abs(señal_art) > UMBRAL_UV
+        if mask_art.any():
+            ax.scatter(tiempo_ms[mask_art], señal_art[mask_art],
+                      color="red", s=20, zorder=5,
+                      label=f"Muestras fuera de umbral "
+                            f"({mask_art.sum()} puntos)")
+
+        ax.axhline(0, color="black", linewidth=0.5)
+        ax.set_xlabel("Tiempo (ms)")
+        ax.set_ylabel("Amplitud (µV)")
+        ax.set_title(
+            f"Trial RECHAZADO por artefacto — "
+            f"Sujeto: {trial_artefacto['sujeto']} — "
+            f"Canal: {trial_artefacto['canal']} — "
+            f"Trial: {trial_artefacto['trial_num']}\n"
+            f"Motivo: amplitud supera ±{UMBRAL_UV} µV en "
+            f"{mask_art.sum()} muestras",
+            fontsize=11
+        )
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig("../outputs/figura_preprocesamiento_artefacto.png",
+                    dpi=150, bbox_inches="tight")
+        plt.show()
+        print("  Figura guardada: 'figura_preprocesamiento_artefacto.png'")
+    else:
+        print("  No se encontró ningún trial rechazado para graficar.")
+
+    # -------------------------------------------------------------------------
+    # Guardar resultado (sin la columna auxiliar 'hemisferio')
+    # -------------------------------------------------------------------------
+    df_proc.drop(columns=["hemisferio"], inplace=True)
     df_proc.to_parquet(SALIDA, index=False)
     print(f"\nDatos preprocesados guardados en '{SALIDA}'")
+    print(f"  Canales incluidos: {sorted(df_proc['canal'].unique().tolist())}")
     print("\n[OK] Script 03 finalizado.")
