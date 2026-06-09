@@ -467,9 +467,10 @@ def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame,
 
     hdr = f" — Hemisferio {hemi_label}" if hemi_label else ""
     fig.suptitle(
-        f"Grand Average{hdr} — Hom. (solida) vs Inh. (punteada)\n"
-        "Control (azul) vs Alcoholico (rojo) | "
-        "Sombreado: ventana c240 (220-260 ms)",
+        f"Grand Average — {'Hemisferio derecho' if 'P8' in canales_plot else 'Hemisferio izquierdo'} — "
+        "Hom. (sólida) vs Inh. (punteada)\n"
+        "Control (azul) vs Alcohólico (rojo) | "
+        "Naranja: ventana c240 (220–260 ms) | Púrpura: ventana c320 (290–340 ms)",
         fontsize=13
     )
 
@@ -512,9 +513,13 @@ def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame,
                         color=color, alpha=0.1
                     )
 
-            # Marcar ventana c240
+            # Marcar ventanas c240 y c320
             ax.axvspan(220, 260, alpha=0.12, color="orange",
-                       label="c240" if col == 0 and fila == 0 else "")
+                       label="c240 (220-260 ms)" 
+                       if col == 0 and fila == 0 else "")
+            ax.axvspan(290, 340, alpha=0.10, color="purple",
+                       label="c320 (290-340 ms)"
+                       if col == 0 and fila == 0 else "")
             ax.axvline(0,  color="gray",  linestyle=":", linewidth=0.8)
             ax.axhline(0,  color="black", linewidth=0.5)
             ax.set_title(f"Canal: {canal}\n{cond}", fontsize=10)
