@@ -337,7 +337,7 @@ class StatsPanel(QtWidgets.QWidget):
                 return (f"{fmt_signed(p[1])} µV @ {fmt(p[0], 0)} ms"
                         if p else "—")
             pico_txt = (
-                "<b>Pico del promedio (ventana amplia 150–400 ms):</b> "
+                "<b>Pico del promedio (ventana 200–400 ms):</b> "
                 f"Control {_pk('control')} · Alcohólico {_pk('alcoholic')}<br>"
             )
 

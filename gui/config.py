@@ -77,11 +77,17 @@ OFICIAL_VENTANA_C240 = {
     "inhomogeneo": "c240 inh.",
 }
 
-# Ventana AMPLIA para detectar el pico positivo real del Grand Average (solo
+# Ventana para detectar el pico positivo real del Grand Average (solo
 # visualización: marcar dónde pica el componente, que se mueve entre c240 y la
 # positividad tardía según la condición). NO afecta la métrica oficial del c240,
 # que sigue usando la ventana fija 220-260 ms de Zhang.
-V_PICO = (150, 400)   # ms
+#
+# Arranca en 200 ms (no antes) para NO confundir el componente cognitivo
+# (VMP/c240 y c320, >200 ms) con el bump sensorial temprano P1/N1 (~120-150 ms).
+# Con un límite inferior en 150 ms, en canales donde el alcohólico no tiene
+# positividad real en la ventana del componente (p. ej. T7/T8 en S2 nomatch),
+# el argmax caía sobre el P1 temprano (~152 ms) en vez de la zona del componente.
+V_PICO = (200, 400)   # ms
 
 # =============================================================================
 # PALETA / ESTÉTICA  (modo oscuro, científico)
