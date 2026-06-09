@@ -4,57 +4,56 @@ TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
 Grupo 11: Cobián, Obeid, Perelstein
 
-Script 04: Promediado de Trials — Homogéneo vs Inhomogéneo
+Script 04: Promediado de Trials — Homogéneo vs Inhomogéneo  [VERSIÓN 2]
 ==============================================================================
 
-Propósito:
-    Obtener el Potencial Evocado (PE) individual por sujeto, canal y
-    condición mediante dos estrategias de promediado, y comparar cuál
-    estima mejor el PE.
+Cambios respecto a la versión anterior:
 
-    (A) HOMOGÉNEO: promedio aritmético clásico. Todos los trials pesan igual.
+  1. IGUALACIÓN DE GRUPOS
+     El dataset tiene 77 alcohólicos y 45 controles. Para que el Grand
+     Average sea comparable entre grupos (mismo N), se seleccionan
+     aleatoriamente 45 alcohólicos con semilla fija (SEED = 42).
+     Esto asegura reproducibilidad y elimina el sesgo que introduce tener
+     más realizaciones en un grupo que en el otro al calcular la media.
+
+  2. SNR CORREGIDA SEGÚN TEORÍA DE CLASE (slides de Potenciales Evocados)
+     La versión anterior usaba SNR = var(promedio) / var(promedio_±), donde
+     el denominador era el promedio con signos alternados.
+     Eso NO es la SNR del promedio del ensamble tal como la define la teoría.
+
+     Definición correcta (slides):
+         SNR = Potencia(señal estimada) / Potencia(ruido estimado)
+
+     Implementación:
+         - Dividir el ensamble en subensambles PAR e IMPAR.
+         - s_par   = promedio de trials pares
+         - s_impar = promedio de trials impares
+         - Señal estimada: s_avg = (s_par + s_impar) / 2   (promedio total)
+         - Ruido estimado: e = (s_par - s_impar) / 2
+           (la señal se cancela, queda solo el ruido residual del promedio)
+         - SNR = var(s_avg) / var(e)
+
+     Esta es exactamente la SNR del promedio del ensamble:
+     numerador = potencia de la señal estimada
+     denominador = varianza del error de estimación
+
+  3. COMPARACIÓN HEMISFÉRICA
+     Se incluyen los 8 canales (4 derechos + 4 izquierdos) para replicar
+     la asimetría hemisférica del paper de Zhang et al. (1997).
+
+Propósito general:
+    Obtener el PE individual por sujeto, canal y condición mediante dos
+    estrategias de promediado, comparar su SNR y calcular el Grand Average.
+
+    (A) HOMOGÉNEO: promedio aritmético clásico.
             PE(t) = (1/M) * Σ x_i(t)
 
-    (B) INHOMOGÉNEO (caso s[n] de amplitud variable, ruido de varianza
-        constante — visto en clase):
-            Modelo:  X = s·aᵀ + V,   con R_v = σ²·I  (ruido homocedástico)
-                     cada trial:  x_i = a_i·s + v_i
-            El estimador del promedio ponderado es insesgado (E[ŝ_w]=s) si
-            los pesos son:
-                     w = a / (aᵀa)          (diapositivas 9-10)
-            donde a es el vector de amplitudes de cada trial.
+    (B) INHOMOGÉNEO (caso amplitud variable, varianza de ruido constante):
+            x_i = a_i · s + v_i
+            w   = a / (aᵀa)
+            ŝ_w = Σ w_i · x_i
 
-        Receta (diapositiva 12):
-            1. Promedio ordinario del ensamble  x̄ = (1/M) Σ x_i
-            2. Estimar las amplitudes a_i proyectando cada trial sobre el
-               promedio ordinario.  La diapositiva 11 asume sᵀs = 1, por lo
-               que la proyección se hace sobre el promedio NORMALIZADO; en la
-               práctica esto equivale a:
-                     a_i = <x_i, x̄> / <x̄, x̄>
-               con lo que las a_i quedan adimensionales y centradas en 1
-               (amplitudes RELATIVAS), y el promedio ponderado conserva la
-               escala en µV (comparable con el homogéneo).
-            3. Pesos:  w = a / (aᵀa)         (aᵀa = Σ a_i²)
-            4. Promedio ponderado:  ŝ_w = Σ w_i · x_i
-
-        Nota de implementación: la proyección se normaliza por <x̄,x̄> y NO se
-        truncan amplitudes negativas (la teórica no lo indica; truncar sesga
-        el estimador). Si se omite la normalización, ŝ_w sale dividido por
-        ||x̄||² y la escala se colapsa sobre datos reales en µV.
-
-Comparación entre métodos (SNR por método ±, "plus-minus reference"):
-    No tenemos baseline pre-estímulo confiable, así que NO usamos
-    var(señal)/var(baseline). En su lugar estimamos el ruido residual del
-    promedio con el método ±:
-        - promedio normal  →  señal + ruido residual
-        - promedio con signos alternados  →  la señal se cancela, queda ruido
-        SNR = var(promedio) / var(promedio con signos alternados)
-    Es una métrica justa entre métodos porque mide el ruido que realmente
-    queda en cada promedio, no la varianza de la propia señal.
-
-Entrada:  outputs/eeg_data_preprocesado.parquet   (TRIALS crudos, generado
-          por Script 03; columnas: sujeto, grupo, canal, condicion,
-          trial_num, muestra, valor_uV)
+Entrada:  outputs/eeg_data_preprocesado.parquet   (Script 03)
 Salida:   outputs/eeg_PE_homogeneo.parquet
           outputs/eeg_PE_inhomogeneo.parquet
           outputs/eeg_GA_homogeneo.parquet
@@ -62,6 +61,7 @@ Salida:   outputs/eeg_PE_homogeneo.parquet
           outputs/tabla_snr_comparacion.csv
           outputs/figura_GA_comparacion.png
           outputs/figura_snr_comparacion.png
+          outputs/sujetos_seleccionados.csv   (registro de qué 45 alcohólicos)
 
 Uso:
     Correr desde la carpeta scripts/
@@ -80,11 +80,16 @@ from pathlib import Path
 
 FS        = 256   # Hz
 N_SAMPLES = 256   # muestras por trial
+SEED      = 42    # semilla para reproducibilidad al submuestrear alcohólicos
+N_SUJETOS = 45    # cantidad de sujetos por grupo (igual al grupo control)
 
-CANALES_INTERES = ["P8", "PO8", "T8", "TP8"]
-CONDICIONES     = ["S1 obj", "S2 nomatch"]
+# Canales — igual que en el Script 03
+CANALES_DERECHO   = ["P8",  "PO8",  "T8",  "TP8"]
+CANALES_IZQUIERDO = ["P7",  "PO7",  "T7",  "TP7"]
+CANALES_INTERES   = CANALES_DERECHO + CANALES_IZQUIERDO
 
-EPS = 1e-12       # estabilidad numérica
+CONDICIONES = ["S1 obj", "S2 nomatch"]
+EPS = 1e-12
 
 ENTRADA          = Path("../outputs/eeg_data_preprocesado.parquet")
 SALIDA_HOM       = Path("../outputs/eeg_PE_homogeneo.parquet")
@@ -92,6 +97,63 @@ SALIDA_INH       = Path("../outputs/eeg_PE_inhomogeneo.parquet")
 SALIDA_GA_HOM    = Path("../outputs/eeg_GA_homogeneo.parquet")
 SALIDA_GA_INH    = Path("../outputs/eeg_GA_inhomogeneo.parquet")
 SALIDA_SNR       = Path("../outputs/tabla_snr_comparacion.csv")
+SALIDA_SUJETOS   = Path("../outputs/sujetos_seleccionados.csv")
+
+# =============================================================================
+# IGUALACIÓN DE GRUPOS
+# =============================================================================
+
+def igualar_grupos(df: pd.DataFrame, n: int, seed: int) -> pd.DataFrame:
+    """
+    Selecciona aleatoriamente 'n' sujetos del grupo alcohólico para
+    equiparar el tamaño con el grupo control.
+
+    Justificación: el Grand Average (GA) es el promedio de los PE
+    individuales de todos los sujetos del grupo. Si un grupo tiene más
+    sujetos que el otro, su GA tendrá menor varianza (más promediación),
+    haciendo la comparación entre grupos injusta. Al igualar N, ambos
+    GAs tienen la misma precisión estadística.
+
+    Args:
+        df:   DataFrame completo (todos los sujetos y canales)
+        n:    cantidad de alcohólicos a retener (= tamaño del grupo control)
+        seed: semilla aleatoria para reproducibilidad
+
+    Retorna:
+        DataFrame filtrado con n alcohólicos + todos los controles
+    """
+    sujetos_alc = df[df["grupo"] == "alcoholic"]["sujeto"].unique()
+    sujetos_ctrl = df[df["grupo"] == "control"]["sujeto"].unique()
+
+    n_alc  = len(sujetos_alc)
+    n_ctrl = len(sujetos_ctrl)
+
+    print(f"\n  Sujetos originales: {n_alc} alcohólicos, {n_ctrl} controles")
+
+    if n_alc <= n:
+        print(f"  El grupo alcohólico ya tiene ≤ {n} sujetos. No se submuestrea.")
+        return df
+
+    rng = np.random.default_rng(seed)
+    seleccionados = rng.choice(sujetos_alc, size=n, replace=False)
+    seleccionados_sorted = sorted(seleccionados)
+
+    print(f"  Seleccionados {n} alcohólicos (semilla={seed}).")
+    print(f"  Alcohólicos incluidos: {seleccionados_sorted[:5]} ...")
+
+    # Guardar registro de sujetos seleccionados
+    pd.DataFrame({
+        "sujeto": list(seleccionados_sorted) + list(sujetos_ctrl),
+        "grupo": ["alcoholic"] * n + ["control"] * n_ctrl
+    }).to_csv(SALIDA_SUJETOS, index=False)
+    print(f"  Registro guardado en '{SALIDA_SUJETOS}'")
+
+    mask = (
+        (df["grupo"] == "control") |
+        ((df["grupo"] == "alcoholic") & df["sujeto"].isin(seleccionados))
+    )
+    return df[mask].copy()
+
 
 # =============================================================================
 # FUNCIONES DE PROMEDIADO
@@ -101,11 +163,7 @@ def trials_a_matriz(df_grupo: pd.DataFrame) -> np.ndarray:
     """
     Convierte el DataFrame de un grupo (sujeto×canal×condición) en una
     matriz X de shape (n_trials, N_SAMPLES).
-
-    Solo incluye trials con exactamente N_SAMPLES muestras (trials completos).
-
-    Retorna:
-        matriz numpy (n_trials, N_SAMPLES) o None si no hay >= 2 trials válidos
+    Solo incluye trials con exactamente N_SAMPLES muestras.
     """
     pivot = (
         df_grupo
@@ -121,31 +179,20 @@ def trials_a_matriz(df_grupo: pd.DataFrame) -> np.ndarray:
 
 
 def promedio_homogeneo(X: np.ndarray) -> np.ndarray:
-    """
-    Promedio aritmético clásico: PE = (1/M) * Σ x_i
-
-    Args:
-        X: matriz (n_trials, N_SAMPLES)
-    Retorna:
-        array 1D (N_SAMPLES,) con el PE promediado
-    """
+    """Promedio aritmético clásico: PE = (1/M) * Σ x_i"""
     return X.mean(axis=0)
 
 
 def estimar_amplitudes(X: np.ndarray) -> np.ndarray:
     """
-    Estima el vector de amplitudes relativas a_i de cada trial proyectando
-    cada realización sobre el promedio ordinario del ensamble (diapositiva 11).
+    Estima las amplitudes relativas a_i proyectando cada trial sobre el
+    promedio ordinario normalizado (diapositiva 11 de clase):
 
-        x̄   = (1/M) Σ x_i               (promedio ordinario)
-        a_i = <x_i, x̄> / <x̄, x̄>        (proyección normalizada)
+        x̄   = (1/M) Σ x_i
+        a_i = <x_i, x̄> / <x̄, x̄>
 
-    La normalización por <x̄,x̄> hace que las a_i sean adimensionales y que su
-    media sea ≈ 1 (amplitudes RELATIVAS al trial típico). Un trial parecido al
-    PE promedio → a_i alto; un trial dominado por ruido → a_i bajo.
-
-    Retorna:
-        a: array (n_trials,) con las amplitudes relativas, o None si x̄ ≈ 0
+    Un trial similar al PE promedio → a_i alto.
+    Un trial dominado por ruido → a_i bajo.
     """
     x_bar = promedio_homogeneo(X)
     den   = float(np.dot(x_bar, x_bar))
@@ -156,225 +203,309 @@ def estimar_amplitudes(X: np.ndarray) -> np.ndarray:
 
 def promedio_inhomogeneo(X: np.ndarray) -> np.ndarray:
     """
-    Promedio inhomogéneo — caso s[n] de amplitud variable, ruido constante.
+    Promedio inhomogéneo — amplitud variable, varianza de ruido constante.
 
-    Pasos (diapositivas 9-12):
-        1. x̄ = promedio ordinario.
-        2. a_i = <x_i, x̄> / <x̄, x̄>          (amplitudes relativas)
-        3. w   = a / (aᵀa),   con  aᵀa = Σ a_i²
+    Pasos (diapositivas de clase):
+        1. x̄ = promedio ordinario
+        2. a_i = <x_i, x̄> / <x̄, x̄>   (amplitudes relativas)
+        3. w   = a / (aᵀa)
         4. ŝ_w = Σ w_i · x_i
-
-    El resultado queda en µV, en la misma escala que el promedio homogéneo,
-    por lo que ambos picos son directamente comparables en el Script 05.
-
-    Args:
-        X: matriz (n_trials, N_SAMPLES)
-    Retorna:
-        array 1D (N_SAMPLES,) con el PE ponderado
     """
     a = estimar_amplitudes(X)
     if a is None:
-        return promedio_homogeneo(X)          # x̄ ≈ 0 → no hay señal estimable
+        return promedio_homogeneo(X)
 
-    aa = float(np.dot(a, a))                  # aᵀa = Σ a_i²
+    aa = float(np.dot(a, a))
     if aa < EPS:
         return promedio_homogeneo(X)
 
-    w = a / aa                                # paso 3: w = a / (aᵀa)
-    return w @ X                              # paso 4: Σ w_i · x_i
+    w = a / aa
+    return w @ X
 
 
-def snr_pm(X: np.ndarray, pesos: np.ndarray) -> float:
+# =============================================================================
+# SNR — DEFINICIÓN CORRECTA SEGÚN TEORÍA DE CLASE
+# =============================================================================
+
+def snr_ensamble(X: np.ndarray, pesos: np.ndarray = None) -> float:
     """
-    SNR del promedio por el método ± (plus-minus reference).
+    SNR del promedio del ensamble, definida como:
 
-    - Promedio ponderado normal:        contiene señal + ruido residual.
-    - Promedio con signos alternados:   la señal coherente se cancela y queda
-                                        solo el ruido residual.
-        SNR = var(promedio) / var(promedio_alternado)
+        SNR = Potencia(señal estimada) / Potencia(ruido estimado)
 
-    No requiere baseline pre-estímulo y es justa entre métodos: mide el ruido
-    que realmente queda en cada promedio.
+    Estimación mediante subensambles par/impar:
+        - s_par   = promedio de los trials con índice par
+        - s_impar = promedio de los trials con índice impar
+        - Señal:  s_avg = (s_par + s_impar) / 2  ≈ PE verdadero
+        - Error:  e     = (s_par - s_impar) / 2
+          (la parte coherente [señal] se cancela; queda solo ruido)
+        - SNR = var(s_avg) / var(e)
+
+    Esta definición viene directamente de las diapositivas de clase:
+    SNR = P(señal) / P(ruido), donde estimamos ambas a partir de los
+    subensambles.
+
+    Si se proveen pesos (caso inhomogéneo), se aplican proporcionalmente
+    a cada subensamble para mantener la consistencia con el método.
 
     Args:
         X:      matriz (n_trials, N_SAMPLES)
-        pesos:  vector (n_trials,) de pesos del método (1's para homogéneo,
-                amplitudes a_i para inhomogéneo). Se renormalizan a suma 1.
+        pesos:  array (n_trials,) opcional. None → homogéneo (pesos iguales)
+
     Retorna:
-        SNR (float) o np.nan
+        SNR (float) o np.nan si hay muy pocos trials
     """
-    s = pesos.sum()
-    if abs(s) < EPS:
+    M = X.shape[0]
+    if M < 4:
         return np.nan
-    w = pesos / s
-    prom   = w @ X
-    signos = (-1.0) ** np.arange(X.shape[0])
-    ruido  = (w * signos) @ X
-    var_n  = np.var(ruido)
-    return float(np.var(prom) / var_n) if var_n > EPS else np.nan
+
+    idx_par   = np.arange(0, M, 2)
+    idx_impar = np.arange(1, M, 2)
+
+    if pesos is None:
+        # Homogéneo: media aritmética en cada subensamble
+        s_par   = X[idx_par].mean(axis=0)
+        s_impar = X[idx_impar].mean(axis=0)
+    else:
+        # Inhomogéneo: promedio ponderado en cada subensamble
+        w_par   = pesos[idx_par]
+        w_impar = pesos[idx_impar]
+        sum_w_par   = w_par.sum()
+        sum_w_impar = w_impar.sum()
+        if sum_w_par < EPS or sum_w_impar < EPS:
+            return np.nan
+        s_par   = (w_par   @ X[idx_par])   / sum_w_par
+        s_impar = (w_impar @ X[idx_impar]) / sum_w_impar
+
+    # Señal estimada y error de estimación
+    s_avg = (s_par + s_impar) / 2.0   # ≈ PE verdadero
+    error = (s_par - s_impar) / 2.0   # ruido residual del promedio
+
+    var_señal = float(np.var(s_avg, ddof=1))
+    var_error = float(np.var(error, ddof=1))
+
+    if var_error < EPS:
+        return np.nan
+
+    return var_señal / var_error
 
 
 # =============================================================================
-# CÁLCULO DE PE INDIVIDUAL (+ SNR por método)
+# CÁLCULO DE PE INDIVIDUAL Y SNR
 # =============================================================================
 
-def calcular_PE_individual(df: pd.DataFrame) -> tuple:
+def calcular_PE_individual(df: pd.DataFrame):
     """
-    Para cada combinación (sujeto, grupo, canal, condición):
-        1. Arma la matriz de trials X.
-        2. Calcula PE homogéneo e inhomogéneo.
-        3. Calcula SNR± de cada método.
+    Para cada combinación sujeto × canal × condición:
+        - Calcula el PE homogéneo e inhomogéneo
+        - Calcula la SNR de cada método (definición correcta)
 
     Retorna:
-        pe_hom_df: DataFrame con PE homogéneo (formato largo, una fila/muestra)
-        pe_inh_df: DataFrame con PE inhomogéneo
-        snr_df:    DataFrame con SNR de ambos métodos (una fila por método)
+        pe_hom:  DataFrame con los PE homogéneos
+        pe_inh:  DataFrame con los PE inhomogéneos
+        snr_df:  DataFrame con la SNR por sujeto, canal, condición y método
     """
     grupos = df.groupby(["sujeto", "grupo", "canal", "condicion"])
     n_total = len(grupos)
-    print(f"  Combinaciones sujeto×canal×condición: {n_total:,}")
 
-    filas_hom = []
-    filas_inh = []
-    filas_snr = []
+    pe_hom_lista = []
+    pe_inh_lista = []
+    snr_lista    = []
+
+    print(f"  Combinaciones sujeto×canal×condición: {n_total}")
 
     for idx, ((sujeto, grupo, canal, cond), sub) in enumerate(grupos):
-        if idx % 2000 == 0:
-            print(f"  Progreso: {idx:,}/{n_total:,}...")
+        if idx % 200 == 0:
+            print(f"  Progreso: {idx}/{n_total}...")
 
         X = trials_a_matriz(sub)
         if X is None:
             continue
 
-        n_trials = X.shape[0]
-        pe_hom   = promedio_homogeneo(X)
-        pe_inh   = promedio_inhomogeneo(X)
-        muestras = np.arange(N_SAMPLES)
+        M = X.shape[0]
 
-        base = {
+        # --- PE homogéneo ---
+        pe_h = promedio_homogeneo(X)
+        snr_h = snr_ensamble(X, pesos=None)
+
+        # --- PE inhomogéneo ---
+        a = estimar_amplitudes(X)
+        if a is not None:
+            aa = float(np.dot(a, a))
+            w  = a / aa if aa >= EPS else np.ones(M) / M
+            pe_i  = w @ X
+            snr_i = snr_ensamble(X, pesos=w)
+        else:
+            pe_i  = pe_h.copy()
+            snr_i = snr_h
+
+        # Guardar PE homogéneo
+        pe_hom_lista.append(pd.DataFrame({
             "sujeto":    sujeto,
             "grupo":     grupo,
             "canal":     canal,
             "condicion": cond,
-            "n_trials":  n_trials,
-        }
+            "metodo":    "homogeneo",
+            "n_trials":  M,
+            "muestra":   np.arange(N_SAMPLES),
+            "valor_uV":  pe_h,
+        }))
 
-        for m, v_h, v_i in zip(muestras, pe_hom, pe_inh):
-            filas_hom.append({**base, "muestra": int(m), "PE_uV": float(v_h)})
-            filas_inh.append({**base, "muestra": int(m), "PE_uV": float(v_i)})
+        # Guardar PE inhomogéneo
+        pe_inh_lista.append(pd.DataFrame({
+            "sujeto":    sujeto,
+            "grupo":     grupo,
+            "canal":     canal,
+            "condicion": cond,
+            "metodo":    "inhomogeneo",
+            "n_trials":  M,
+            "muestra":   np.arange(N_SAMPLES),
+            "valor_uV":  pe_i,
+        }))
 
-        # SNR de ambos métodos sobre los MISMOS trials
-        a = estimar_amplitudes(X)
-        w_inh = a if a is not None else np.ones(n_trials)
-        filas_snr.append({**base, "metodo": "homogeneo",
-                          "snr": snr_pm(X, np.ones(n_trials))})
-        filas_snr.append({**base, "metodo": "inhomogeneo",
-                          "snr": snr_pm(X, w_inh)})
+        # Guardar SNR
+        snr_lista.append({
+            "sujeto": sujeto, "grupo": grupo,
+            "canal": canal, "condicion": cond,
+            "n_trials": M,
+            "snr_homogeneo":   snr_h,
+            "snr_inhomogeneo": snr_i,
+        })
 
-    return (pd.DataFrame(filas_hom),
-            pd.DataFrame(filas_inh),
-            pd.DataFrame(filas_snr))
+    pe_hom = pd.concat(pe_hom_lista, ignore_index=True)
+    pe_inh = pd.concat(pe_inh_lista, ignore_index=True)
+    snr_df = pd.DataFrame(snr_lista)
+    return pe_hom, pe_inh, snr_df
 
 
 # =============================================================================
 # GRAND AVERAGE
 # =============================================================================
 
-def calcular_grand_average(pe_ind: pd.DataFrame) -> pd.DataFrame:
+def calcular_grand_average(pe_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Promedia los PE individuales de todos los sujetos del mismo grupo y calcula
-    el error estándar (SEM) entre sujetos para graficar bandas de variabilidad.
-
-    Retorna columnas:
-        grupo, canal, condicion, muestra, grand_avg_uV, std_uV, n_sujetos, sem_uV
+    Grand Average: promedio de los PE individuales de todos los sujetos
+    de un grupo, por canal y condición.
+    También calcula el SEM (error estándar de la media entre sujetos).
     """
-    grand = (
-        pe_ind
-        .groupby(["grupo", "canal", "condicion", "muestra"])["PE_uV"]
-        .agg(grand_avg_uV="mean", std_uV="std", n_sujetos="count")
+    ga = (
+        pe_df.groupby(["grupo", "canal", "condicion", "muestra"])["valor_uV"]
+        .agg(["mean", "std", "count"])
         .reset_index()
+        .rename(columns={"mean": "grand_avg_uV",
+                         "std":  "std_uV",
+                         "count": "n_sujetos"})
     )
-    grand["sem_uV"] = grand["std_uV"] / np.sqrt(grand["n_sujetos"].clip(lower=1))
-    return grand
+    ga["sem_uV"] = ga["std_uV"] / np.sqrt(ga["n_sujetos"])
+    return ga
 
 
 # =============================================================================
-# COMPARACIÓN DE MÉTODOS — SNR
+# COMPARACIÓN DE SNR — IMPRESIÓN EN CONSOLA
 # =============================================================================
 
 def comparar_snr(snr_df: pd.DataFrame):
-    """Imprime resumen comparativo de SNR± entre métodos."""
-    print("\n" + "=" * 64)
-    print("COMPARACIÓN DE SNR (método ±)  —  SNR = var(promedio)/var(±)")
-    print("=" * 64)
-
-    for metodo in ["homogeneo", "inhomogeneo"]:
-        vals = snr_df[snr_df["metodo"] == metodo]["snr"].dropna()
-        print(f"\n{metodo.capitalize()}:")
-        print(f"  Mediana SNR: {vals.median():.3f}")
-        print(f"  Media SNR:   {vals.mean():.3f}")
-        print(f"  N:           {len(vals)}")
-
-    print(f"\n{'Canal':<5} {'Condición':<12} "
-          f"{'SNR Hom':>10} {'SNR Inh':>10} {'Ganador':>10}")
-    print("-" * 52)
-
-    g = (snr_df.groupby(["canal", "condicion", "metodo"])["snr"]
-         .median().unstack("metodo"))
-    for canal in CANALES_INTERES:
-        for cond in CONDICIONES:
-            try:
-                sh = g.loc[(canal, cond), "homogeneo"]
-                si = g.loc[(canal, cond), "inhomogeneo"]
-            except KeyError:
-                continue
-            ganador = "Inh" if si > sh else "Hom"
-            print(f"{canal:<5} {cond:<12} {sh:>10.3f} {si:>10.3f} {ganador:>10}")
-    print("=" * 64)
-
-
-# =============================================================================
-# VISUALIZACIÓN
-# =============================================================================
-
-def graficar_grand_average_comparativo(ga_hom: pd.DataFrame,
-                                        ga_inh: pd.DataFrame):
     """
-    Grand Average de ambos métodos superpuestos por canal y condición.
-    Homogéneo = línea sólida, Inhomogéneo = línea punteada.
+    Imprime la tabla comparativa de SNR en consola.
+    SNR = var(señal estimada) / var(error de estimación par/impar)
+    """
+    print("\n" + "=" * 70)
+    print("COMPARACIÓN DE SNR  —  definición: var(s_avg) / var(error par/impar)")
+    print("Columnas: SNR mediana por canal y condición")
+    print("=" * 70)
+
+    for metodo in ["snr_homogeneo", "snr_inhomogeneo"]:
+        vals = snr_df[metodo].dropna()
+        label = "Homogéneo" if "hom" in metodo else "Inhomogéneo"
+        print(f"\n{label}:")
+        print(f"  Mediana SNR global: {vals.median():.3f}")
+        print(f"  Media SNR global:   {vals.mean():.3f}")
+        print(f"  N combinaciones:    {len(vals)}")
+
+    print(f"\n{'Canal':<6} {'Hemisferio':<12} {'Condición':<13} "
+          f"{'SNR Hom':>10} {'SNR Inh':>10}")
+    print("-" * 65)
+
+    for canal in CANALES_INTERES:
+        hemisferio = "derecho" if canal in CANALES_DERECHO else "izquierdo"
+        for cond in CONDICIONES:
+            sub = snr_df[(snr_df["canal"] == canal) &
+                         (snr_df["condicion"] == cond)]
+            if sub.empty:
+                continue
+            sh = sub["snr_homogeneo"].median()
+            si = sub["snr_inhomogeneo"].median()
+            print(f"{canal:<6} {hemisferio:<12} {cond:<13} "
+                  f"{sh:>10.3f} {si:>10.3f}")
+    print("=" * 70)
+
+
+# =============================================================================
+# VISUALIZACIÓN — figuras divididas por hemisferio
+# =============================================================================
+
+def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame,
+                           canales=None, hemi_label="",
+                           out_file="figura_GA.png"):
+    """
+    Grand Average por canal y condición para un hemisferio.
+    Homogéneo = línea sólida, Inhomogéneo = punteada.
+    Control = azul, Alcohólico = rojo.
     """
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
+    tiempo_ms = np.arange(N_SAMPLES) / FS * 1000
+    canales_ref = canales if canales is not None else CANALES_INTERES
+    canales_plot = [c for c in canales_ref if c in ga_hom["canal"].unique()]
 
     fig, axes = plt.subplots(
-        len(CONDICIONES), len(CANALES_INTERES),
-        figsize=(5 * len(CANALES_INTERES), 4 * len(CONDICIONES)),
-        sharex=True, sharey=True
+        len(CONDICIONES), len(canales_plot),
+        figsize=(5.5 * len(canales_plot), 4.5 * len(CONDICIONES)),
+        sharex=True
     )
+    if len(CONDICIONES) == 1:
+        axes = [axes]
+
+    hdr = f" — Hemisferio {hemi_label}" if hemi_label else ""
     fig.suptitle(
-        "Grand Average — Homogéneo (sólida) vs Inhomogéneo (punteada)\n"
-        "Control (azul) vs Alcohólico (rojo)",
+        f"Grand Average — {'Hemisferio derecho' if 'P8' in canales_plot else 'Hemisferio izquierdo'} — "
+        "Hom. (sólida) vs Inh. (punteada)\n"
+        "Control (azul) vs Alcohólico (rojo) | "
+        "Naranja: ventana c240 (220–260 ms) | Púrpura: ventana c320 (290–340 ms)",
         fontsize=13
     )
 
-    tiempo_ms = np.arange(N_SAMPLES) / FS * 1000
-
     for fila, cond in enumerate(CONDICIONES):
-        for col, canal in enumerate(CANALES_INTERES):
+        for col, canal in enumerate(canales_plot):
             ax = axes[fila][col]
 
             for grupo in ["control", "alcoholic"]:
                 color = colores[grupo]
+                label_base = grupo.capitalize()
 
+                for ga, estilo, label_sfx in [
+                    (ga_hom, "-",  " Hom"),
+                    (ga_inh, "--", " Inh")
+                ]:
+                    d = ga[
+                        (ga["grupo"] == grupo) &
+                        (ga["canal"] == canal) &
+                        (ga["condicion"] == cond)
+                    ].sort_values("muestra")
+                    if d.empty:
+                        continue
+                    lbl = (label_base + label_sfx
+                           if col == 0 and fila == 0 else "")
+                    ax.plot(tiempo_ms, d["grand_avg_uV"].values,
+                            color=color, linewidth=1.8, linestyle=estilo,
+                            label=lbl)
+
+                # Banda SEM solo para homogeneo (mas legible)
                 d_hom = ga_hom[
                     (ga_hom["grupo"] == grupo) &
                     (ga_hom["canal"] == canal) &
                     (ga_hom["condicion"] == cond)
                 ].sort_values("muestra")
                 if not d_hom.empty:
-                    ax.plot(tiempo_ms, d_hom["grand_avg_uV"].values,
-                            color=color, linewidth=1.8, linestyle="-",
-                            label=(f"{grupo.capitalize()} Hom"
-                                   if col == 0 and fila == 0 else ""))
                     ax.fill_between(
                         tiempo_ms,
                         d_hom["grand_avg_uV"] - d_hom["sem_uV"],
@@ -382,76 +513,80 @@ def graficar_grand_average_comparativo(ga_hom: pd.DataFrame,
                         color=color, alpha=0.1
                     )
 
-                d_inh = ga_inh[
-                    (ga_inh["grupo"] == grupo) &
-                    (ga_inh["canal"] == canal) &
-                    (ga_inh["condicion"] == cond)
-                ].sort_values("muestra")
-                if not d_inh.empty:
-                    ax.plot(tiempo_ms, d_inh["grand_avg_uV"].values,
-                            color=color, linewidth=1.8, linestyle="--",
-                            label=(f"{grupo.capitalize()} Inh"
-                                   if col == 0 and fila == 0 else ""))
-
-            ax.axvline(0, color="gray", linestyle=":", linewidth=0.8)
-            ax.axhline(0, color="black", linewidth=0.5)
-            ax.set_title(f"Canal: {canal}\nCondición: {cond}", fontsize=10)
+            # Marcar ventanas c240 y c320
+            ax.axvspan(220, 260, alpha=0.12, color="orange",
+                       label="c240 (220-260 ms)" 
+                       if col == 0 and fila == 0 else "")
+            ax.axvspan(290, 340, alpha=0.10, color="purple",
+                       label="c320 (290-340 ms)"
+                       if col == 0 and fila == 0 else "")
+            ax.axvline(0,  color="gray",  linestyle=":", linewidth=0.8)
+            ax.axhline(0,  color="black", linewidth=0.5)
+            ax.set_title(f"Canal: {canal}\n{cond}", fontsize=10)
             ax.set_xlabel("Tiempo (ms)")
-            ax.set_ylabel("Amplitud (µV)")
+            ax.set_ylabel("Amplitud (uV)")
             ax.grid(True, alpha=0.25)
             if fila == 0 and col == 0:
-                ax.legend(fontsize=8, loc="upper right")
+                ax.legend(fontsize=7, loc="upper right")
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_GA_comparacion.png",
-                dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_GA_comparacion.png'")
+    print(f"  Figura guardada: '{out_file}'")
 
 
-def graficar_snr_comparacion(snr_df: pd.DataFrame):
-    """Barras del SN± mediano por método, agrupadas por canal y condición."""
+def graficar_snr(snr_df: pd.DataFrame, canales=None, hemi_label="",
+                 out_file="figura_snr.png"):
+    """
+    Barras de SNR mediana por canal y condicion para un hemisferio.
+    """
+    canales_ref = canales if canales is not None else CANALES_INTERES
+    canales_plot = [c for c in canales_ref if c in snr_df["canal"].unique()]
+
     fig, axes = plt.subplots(1, len(CONDICIONES),
-                             figsize=(7 * len(CONDICIONES), 5))
+                             figsize=(8 * len(CONDICIONES), 5))
     if len(CONDICIONES) == 1:
         axes = [axes]
 
+    hdr = f" — Hemisferio {hemi_label}" if hemi_label else ""
     fig.suptitle(
-        "Comparación de SNR (método ±): Homogéneo vs Inhomogéneo\n"
-        "SNR = var(promedio) / var(promedio con signos alternados)",
-        fontsize=13
+        f"SNR del promedio del ensamble{hdr}\n"
+        "SNR = var(senal estimada) / var(error par/impar)  |  "
+        "Barras: mediana por canal",
+        fontsize=12
     )
 
-    colores = {"homogeneo": "#94a3b8", "inhomogeneo": "#16a34a"}
-    x = np.arange(len(CANALES_INTERES))
+    colores_metodo = {"snr_homogeneo": "#94a3b8", "snr_inhomogeneo": "#16a34a"}
+    labels_metodo  = {"snr_homogeneo": "Homogeneo", "snr_inhomogeneo": "Inhomogeneo"}
+
+    x = np.arange(len(canales_plot))
     ancho = 0.35
 
     for ax, cond in zip(axes, CONDICIONES):
-        for i, metodo in enumerate(["homogeneo", "inhomogeneo"]):
+        for i, metodo in enumerate(["snr_homogeneo", "snr_inhomogeneo"]):
             medianas = []
-            for canal in CANALES_INTERES:
+            for canal in canales_plot:
                 vals = snr_df[
                     (snr_df["canal"] == canal) &
-                    (snr_df["condicion"] == cond) &
-                    (snr_df["metodo"] == metodo)
-                ]["snr"].dropna().values
+                    (snr_df["condicion"] == cond)
+                ][metodo].dropna().values
                 medianas.append(np.median(vals) if len(vals) else np.nan)
+
             ax.bar(x + i * ancho, medianas, ancho,
-                   label=metodo.capitalize(),
-                   color=colores[metodo], alpha=0.85)
+                   label=labels_metodo[metodo],
+                   color=colores_metodo[metodo], alpha=0.85)
 
         ax.set_xticks(x + ancho / 2)
-        ax.set_xticklabels(CANALES_INTERES)
-        ax.set_title(f"Condición: {cond}", fontsize=11)
-        ax.set_ylabel("SNR± mediano")
+        ax.set_xticklabels(canales_plot, rotation=30)
+        ax.set_title(f"Condicion: {cond}", fontsize=11)
+        ax.set_ylabel("SNR mediana")
         ax.legend(fontsize=10)
         ax.grid(True, axis="y", alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_snr_comparacion.png",
-                dpi=150, bbox_inches="tight")
+    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada: 'figura_snr_comparacion.png'")
+    print(f"  Figura guardada: '{out_file}'")
 
 
 # =============================================================================
@@ -460,51 +595,103 @@ def graficar_snr_comparacion(snr_df: pd.DataFrame):
 
 if __name__ == "__main__":
 
-    print("=" * 64)
-    print("TPS — Potenciales Evocados Visuales en Alcoholismo")
-    print("Script 04: Promediado Homogéneo vs Inhomogéneo")
-    print("=" * 64)
+    print("=" * 70)
+    print("TPS -- Potenciales Evocados Visuales en Alcoholismo")
+    print("Script 04: Promediado  [v2 -- PE completo + GA igualado]")
+    print("=" * 70)
 
     if not ENTRADA.exists():
         raise FileNotFoundError(
-            f"No se encontró '{ENTRADA}'.\n"
-            "El Script 04 consume los TRIALS crudos preprocesados "
-            "(columnas trial_num, muestra, valor_uV) del Script 03."
+            f"No se encontro '{ENTRADA}'.\n"
+            "Corre primero el Script 03."
         )
 
     print(f"\nCargando '{ENTRADA}'...")
     df = pd.read_parquet(ENTRADA)
     print(f"  {len(df):,} filas cargadas")
-    print(f"  Sujetos: {df['sujeto'].nunique()} "
-          f"({df[df['grupo']=='alcoholic']['sujeto'].nunique()} alcohólicos, "
-          f"{df[df['grupo']=='control']['sujeto'].nunique()} controles)")
+    print(f"  Sujetos originales: "
+          f"{df[df['grupo']=='alcoholic']['sujeto'].nunique()} alcoholicos, "
+          f"{df[df['grupo']=='control']['sujeto'].nunique()} controles")
 
-    print("\nCalculando PE individuales (homogéneo e inhomogéneo) + SNR...")
+    # Verificar canales disponibles
+    canales_disponibles = df["canal"].unique().tolist()
+    canales_en_datos = [c for c in CANALES_INTERES if c in canales_disponibles]
+    canales_faltantes = [c for c in CANALES_INTERES if c not in canales_disponibles]
+    if canales_faltantes:
+        print(f"\n  ADVERTENCIA: canales no encontrados: {canales_faltantes}")
+        print(f"  Continuando con: {canales_en_datos}")
+
+    # -------------------------------------------------------------------------
+    # Calculo de PE individual + SNR  (TODOS los sujetos: 77 alc + 45 ctrl)
+    # -------------------------------------------------------------------------
+    # NOTA: el PE se calcula para TODOS los sujetos porque el Script 06 necesita
+    # la muestra completa (77 vs 45) para el t-test (Welch maneja N desigual).
+    # La igualacion a 45+45 se aplica SOLO al Grand Average.
+    print("\nCalculando PE individuales (homogeneo e inhomogeneo) + SNR...")
+    print("  (TODOS los sujetos -- 77 alc + 45 ctrl -- para inferencia completa)")
     pe_hom, pe_inh, snr_df = calcular_PE_individual(df)
-    print(f"\n  PE homogéneo:    {len(pe_hom):,} filas")
-    print(f"  PE inhomogéneo:  {len(pe_inh):,} filas")
+    print(f"\n  PE homogeneo:    {len(pe_hom):,} filas")
+    print(f"  PE inhomogeneo:  {len(pe_inh):,} filas")
+    print(f"  Sujetos en PE: "
+          f"{pe_hom[pe_hom['grupo']=='alcoholic']['sujeto'].nunique()} alc + "
+          f"{pe_hom[pe_hom['grupo']=='control']['sujeto'].nunique()} ctrl")
 
-    print("\nCalculando Grand Average...")
-    ga_hom = calcular_grand_average(pe_hom)
-    ga_inh = calcular_grand_average(pe_inh)
-
-    print("\nGuardando archivos...")
+    # Guardar PE individual (muestra COMPLETA para Scripts 05/06)
+    print("\nGuardando PE individuales (muestra completa)...")
     pe_hom.to_parquet(SALIDA_HOM, index=False)
     pe_inh.to_parquet(SALIDA_INH, index=False)
+    print(f"  PE homogeneo   -> '{SALIDA_HOM}'")
+    print(f"  PE inhomogeneo -> '{SALIDA_INH}'")
+
+    # -------------------------------------------------------------------------
+    # Igualacion de grupos (SOLO para Grand Average)
+    # -------------------------------------------------------------------------
+    print(f"\nIgualando grupos a {N_SUJETOS} sujetos por grupo (SOLO para GA)...")
+    df_sub = igualar_grupos(df, N_SUJETOS, SEED)
+    sujetos_ga = set(df_sub["sujeto"].unique())
+    print(f"  Sujetos para GA: "
+          f"{df_sub[df_sub['grupo']=='alcoholic']['sujeto'].nunique()} alc + "
+          f"{df_sub[df_sub['grupo']=='control']['sujeto'].nunique()} ctrl")
+
+    pe_hom_ga = pe_hom[pe_hom["sujeto"].isin(sujetos_ga)]
+    pe_inh_ga = pe_inh[pe_inh["sujeto"].isin(sujetos_ga)]
+    snr_df_ga = snr_df[snr_df["sujeto"].isin(sujetos_ga)]
+
+    # -------------------------------------------------------------------------
+    # Grand Average (sobre muestra igualada 45+45)
+    # -------------------------------------------------------------------------
+    print("\nCalculando Grand Average (sobre 45+45)...")
+    ga_hom = calcular_grand_average(pe_hom_ga)
+    ga_inh = calcular_grand_average(pe_inh_ga)
+
     ga_hom.to_parquet(SALIDA_GA_HOM, index=False)
     ga_inh.to_parquet(SALIDA_GA_INH, index=False)
-    snr_df.to_csv(SALIDA_SNR, index=False)
-    print(f"  PE homogéneo   → '{SALIDA_HOM}'")
-    print(f"  PE inhomogéneo → '{SALIDA_INH}'")
-    print(f"  Tabla SNR      → '{SALIDA_SNR}'")
+    snr_df_ga.to_csv(SALIDA_SNR, index=False)
+    print(f"  GA homogeneo   -> '{SALIDA_GA_HOM}'")
+    print(f"  GA inhomogeneo -> '{SALIDA_GA_INH}'")
+    print(f"  Tabla SNR      -> '{SALIDA_SNR}'")
 
-    comparar_snr(snr_df)
+    # -------------------------------------------------------------------------
+    # Comparacion de SNR en consola
+    # -------------------------------------------------------------------------
+    comparar_snr(snr_df_ga)
 
-    print("\nGenerando gráficos...")
-    graficar_grand_average_comparativo(ga_hom, ga_inh)
-    graficar_snr_comparacion(snr_df)
+    # -------------------------------------------------------------------------
+    # Graficos -- divididos por hemisferio
+    # -------------------------------------------------------------------------
+    print("\nGenerando graficos (por hemisferio)...")
+    for canales, label, sufijo in [
+        (CANALES_DERECHO,   "derecho",   "derecho"),
+        (CANALES_IZQUIERDO, "izquierdo", "izquierdo"),
+    ]:
+        graficar_grand_average(
+            ga_hom, ga_inh, canales=canales, hemi_label=label,
+            out_file=f"figura_GA_{sufijo}.png")
+        graficar_snr(
+            snr_df_ga, canales=canales, hemi_label=label,
+            out_file=f"figura_snr_{sufijo}.png")
 
     print("\n[OK] Script 04 finalizado.")
-    print("\nPróximo paso:")
-    print("  Revisá la figura del Grand Average y la tabla de SNR.")
-    print("  El método con mayor SNR se usa como entrada del Script 05.")
+    print("\nProximo paso:")
+    print("  Revisa las figuras del Grand Average y la tabla de SNR.")
+    print("  El PE individual (muestra completa) esta listo para el Script 05.")
