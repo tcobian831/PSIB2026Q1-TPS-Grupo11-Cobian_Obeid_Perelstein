@@ -263,11 +263,9 @@ class StatsPanel(QtWidgets.QWidget):
         self.card_ctrl = KPICard("Media c240 · Control")
         self.card_alc = KPICard("Media c240 · Alcohólico")
         self.card_dif = KPICard("Diferencia (C − A)")
-        self.card_d = KPICard("Cohen's d")
-        self.card_p = KPICard("p-Welch · cohorte")
-        self.card_snr = KPICard("SNR (mediana)")
+        self.card_snr = KPICard("SNR · señal/ruido")
         for c in (self.card_ctrl, self.card_alc, self.card_dif,
-                  self.card_d, self.card_p, self.card_snr):
+                  self.card_snr):
             fila.addWidget(c)
         root.addLayout(fila)
 
@@ -288,7 +286,8 @@ class StatsPanel(QtWidgets.QWidget):
         root.addWidget(self.lbl_nota_snr)
 
     # ----------------------------------------------------------------- update
-    def actualizar(self, vivo: KpiVivo, oficial: KpiOficial, snr: KpiSnr):
+    def actualizar(self, vivo: KpiVivo, oficial: KpiOficial, snr: KpiSnr,
+                   picos: dict | None = None):
         # --- tarjeta métrica principal ---------------------------------------
         self.card_ctrl.set(
             f"{fmt_signed(vivo.control_media)} µV",
@@ -305,55 +304,50 @@ class StatsPanel(QtWidgets.QWidget):
             "media en ventana 220–260 ms",
         )
 
-        # Cohen's d con interpretación rápida.
-        d = vivo.cohens_d
-        magnitud = ""
-        if d == d:
-            ad = abs(d)
-            magnitud = ("trivial" if ad < 0.2 else "pequeño" if ad < 0.5
-                        else "mediano" if ad < 0.8 else "grande")
-        self.card_d.set(fmt_signed(d), f"efecto {magnitud}" if magnitud else "")
-
-        # p-Welch en vivo.
-        sig = (vivo.p_welch == vivo.p_welch) and (vivo.p_welch < 0.05)
-        self.card_p.set(
-            fmt_p(vivo.p_welch),
-            "una cola, C>A" + ("  ·  sig." if sig else ""),
-            color=config.GOOD if sig else None,
-        )
-
-        # SNR.
+        # SNR (relación señal/ruido) — contenido visto en clase.
         if snr.disponible:
             self.card_snr.set(
-                f"H {fmt(snr.snr_homogeneo, 2)}  /  I {fmt(snr.snr_inhomogeneo, 2)}",
-                f"hom / inh · cohorte ref. 45+45 (n={snr.n})",
+                f"Hom {fmt(snr.snr_homogeneo, 2)}  ·  Inh {fmt(snr.snr_inhomogeneo, 2)}",
+                "homogéneo vs inhomogéneo · más alto = mejor",
             )
         else:
             self.card_snr.set("—", "sin datos de SNR")
 
-        # --- referencia oficial Script 06 ------------------------------------
+        # --- referencia: muestra completa (todos los sujetos) ----------------
         if oficial.disponible:
-            marca = "✓ sig. tras FDR" if oficial.sig_fdr else "no sig. tras FDR"
             self.lbl_oficial.setText(
-                f"<b>Referencia oficial (Script 06 · muestra completa "
-                f"{oficial.n_control}v{oficial.n_alcoholic}):</b> "
-                f"C {fmt_signed(oficial.control_media)}±{fmt(oficial.control_sd)} · "
-                f"A {fmt_signed(oficial.alcoholic_media)}±{fmt(oficial.alcoholic_sd)} · "
-                f"d={fmt_signed(oficial.cohens_d)} · "
-                f"p={fmt_p(oficial.p_welch)} · p(FDR)={fmt_p(oficial.p_fdr)} "
-                f"<b>[{marca}]</b>"
+                f"<b>Muestra completa (todos los sujetos: "
+                f"{oficial.n_alcoholic} alcohólicos vs {oficial.n_control} "
+                f"controles):</b> "
+                f"Control {fmt_signed(oficial.control_media)} ± "
+                f"{fmt(oficial.control_sd)} µV · "
+                f"Alcohólico {fmt_signed(oficial.alcoholic_media)} ± "
+                f"{fmt(oficial.alcoholic_sd)} µV · "
+                f"diferencia {fmt_signed(oficial.diferencia)} µV"
             )
         else:
             self.lbl_oficial.setText(
-                "<b>Referencia oficial (Script 06):</b> no disponible para esta "
-                "combinación.")
+                "<b>Muestra completa:</b> sin datos para esta combinación.")
+
+        # --- pico real del promedio (ventana amplia) -------------------------
+        pico_txt = ""
+        if picos:
+            def _pk(g):
+                p = picos.get(g)
+                return (f"{fmt_signed(p[1])} µV @ {fmt(p[0], 0)} ms"
+                        if p else "—")
+            pico_txt = (
+                "<b>Pico del promedio (ventana amplia 150–400 ms):</b> "
+                f"Control {_pk('control')} · Alcohólico {_pk('alcoholic')}<br>"
+            )
 
         # --- secundarios (claramente etiquetados) ----------------------------
         self.lbl_secundarios.setText(
+            pico_txt +
             "<b>Secundarios (no principales):</b> "
-            f"máx C {fmt_signed(vivo.control_max)} / A {fmt_signed(vivo.alcoholic_max)} µV · "
-            f"latencia máx C {fmt(vivo.control_lat, 0)} / A {fmt(vivo.alcoholic_lat, 0)} ms · "
-            f"AUC C {fmt_signed(vivo.control_auc, 1)} / A {fmt_signed(vivo.alcoholic_auc, 1)} µV·ms · "
+            f"máx en c240 C {fmt_signed(vivo.control_max)} / A {fmt_signed(vivo.alcoholic_max)} µV · "
+            f"latencia en c240 C {fmt(vivo.control_lat, 0)} / A {fmt(vivo.alcoholic_lat, 0)} ms · "
+            f"AUC c240 C {fmt_signed(vivo.control_auc, 1)} / A {fmt_signed(vivo.alcoholic_auc, 1)} µV·ms · "
             f"media c320 C {fmt_signed(vivo.control_media_c320)} / "
             f"A {fmt_signed(vivo.alcoholic_media_c320)} µV"
         )

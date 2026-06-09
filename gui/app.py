@@ -44,7 +44,7 @@ from PySide6.QtCore import Qt
 
 from . import averaging, config, stats
 from .data_loader import AppData, MissingDataError, cargar_datos
-from .plotting import ERPPlotWidget
+from .plotting import ERPPlotWidget, pico_positivo
 from .widgets import Sidebar, StatsPanel
 
 
@@ -161,8 +161,8 @@ class MainWindow(QtWidgets.QMainWindow):
         t.setObjectName("appTitle")
         s = QtWidgets.QLabel(
             "Control (azul) vs Alcohólico (rojo) · Grand Average ± SEM entre "
-            "sujetos · ventanas sombreadas: c240 (220–260 ms) y positividad "
-            "tardía (290–340 ms)")
+            "sujetos · ventanas de Zhang et al. (1997): c240/VMP (220–260 ms) "
+            "y c320 (290–340 ms)")
         s.setObjectName("appSubtitle")
         s.setWordWrap(True)
         hlay.addWidget(t)
@@ -214,6 +214,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.data.pe_metodo(metodo_otro), incluidos,
                 st.canal, st.condicion)
 
+        # 2c. Pico real del promedio (ventana amplia) por grupo — solo display.
+        picos = {}
+        for grupo, curva in curvas_sel.items():
+            p = pico_positivo(curva.tiempo_ms, curva.media, *config.V_PICO)
+            if p is not None:
+                picos[grupo] = p
+
         # 3. ¿Reajustar zoom? Solo si cambió canal/condición/método.
         vista = (st.canal, st.condicion, st.metodo)
         reset_view = vista != self._ultima_vista
@@ -221,7 +228,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 4. Gráfico.
         self.plot.actualizar(curvas_sel, st.metodo, curvas_otro, metodo_otro,
-                             reset_view=reset_view)
+                             reset_view=reset_view, picos=picos)
 
         # 5. KPIs.
         vivo = stats.kpi_en_vivo(
@@ -229,7 +236,7 @@ class MainWindow(QtWidgets.QMainWindow):
         oficial = stats.kpi_oficial(
             self.data.estadistica, st.metodo, st.canal, st.condicion)
         snr = stats.kpi_snr(self.data.snr, st.canal, st.condicion)
-        self.stats_panel.actualizar(vivo, oficial, snr)
+        self.stats_panel.actualizar(vivo, oficial, snr, picos=picos)
 
 
 # =============================================================================

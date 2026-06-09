@@ -77,6 +77,12 @@ OFICIAL_VENTANA_C240 = {
     "inhomogeneo": "c240 inh.",
 }
 
+# Ventana AMPLIA para detectar el pico positivo real del Grand Average (solo
+# visualización: marcar dónde pica el componente, que se mueve entre c240 y la
+# positividad tardía según la condición). NO afecta la métrica oficial del c240,
+# que sigue usando la ventana fija 220-260 ms de Zhang.
+V_PICO = (150, 400)   # ms
+
 # =============================================================================
 # PALETA / ESTÉTICA  (modo oscuro, científico)
 # =============================================================================

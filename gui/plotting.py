@@ -44,6 +44,22 @@ def _pen_metodo(color_hex: str, metodo: str, width: float = 2.2, alpha: int = 25
     return pg.mkPen(color=(r, g, b, alpha), width=width, style=estilo)
 
 
+def pico_positivo(t, y, lo: float, hi: float):
+    """
+    Latencia (ms) y amplitud (µV) del pico positivo de una curva dentro de la
+    ventana [lo, hi]. Solo para marcar visualmente dónde pica el componente
+    (NO interviene en la métrica del c240). Devuelve (lat, amp) o None.
+    """
+    t = np.asarray(t)
+    y = np.asarray(y)
+    m = (t >= lo) & (t <= hi)
+    if not m.any():
+        return None
+    seg_t, seg_y = t[m], y[m]
+    i = int(np.argmax(seg_y))
+    return float(seg_t[i]), float(seg_y[i])
+
+
 class ERPPlotWidget(pg.PlotWidget):
     """Gráfico comparativo Control vs Alcohólico con hover y sombreado."""
 
@@ -79,10 +95,10 @@ class ERPPlotWidget(pg.PlotWidget):
         self._region_c320 = self._crear_region(config.V_C320, config.COLOR_VENT_C320)
         self.addItem(self._region_c240)
         self.addItem(self._region_c320)
-        self._etq_c240 = self._crear_etiqueta_region("c240\n220–260 ms",
+        self._etq_c240 = self._crear_etiqueta_region("c240 / VMP\n220–260 ms",
                                                      np.mean(config.V_C240),
                                                      config.COLOR_VENT_C240)
-        self._etq_c320 = self._crear_etiqueta_region("pos. tardía\n290–340 ms",
+        self._etq_c320 = self._crear_etiqueta_region("c320 (Zhang)\n290–340 ms",
                                                      np.mean(config.V_C320),
                                                      config.COLOR_VENT_C320)
         self.addItem(self._etq_c240)
@@ -144,14 +160,21 @@ class ERPPlotWidget(pg.PlotWidget):
         return etq
 
     def _reposicionar_etiquetas(self):
-        """Mantiene las etiquetas de ventana pegadas al borde superior."""
+        """Etiquetas de ventana arriba, escalonadas para que no se pisen.
+
+        Las ventanas c240 (220-260) y c320 (290-340) están muy cerca; si las
+        etiquetas se ponen a la misma altura, los textos quedan apretados.
+        Solución: c240 pegada al borde superior, c320 un escalón por debajo.
+        """
         try:
             (_, _), (y0, y1) = self.getViewBox().viewRange()
         except Exception:
             return
-        top = y1 - 0.02 * (y1 - y0)
-        self._etq_c240.setPos(float(np.mean(config.V_C240)), top)
-        self._etq_c320.setPos(float(np.mean(config.V_C320)), top)
+        rng = y1 - y0
+        y_c240 = y1 - 0.02 * rng    # arriba del todo
+        y_c320 = y1 - 0.12 * rng    # un escalón más abajo
+        self._etq_c240.setPos(float(np.mean(config.V_C240)), y_c240)
+        self._etq_c320.setPos(float(np.mean(config.V_C320)), y_c320)
 
     # -------------------------------------------------------------------------
     # API pública
@@ -163,6 +186,7 @@ class ERPPlotWidget(pg.PlotWidget):
         curvas_otro: dict[str, CurvaGA] | None,
         metodo_otro: str | None,
         reset_view: bool,
+        picos: dict[str, tuple[float, float]] | None = None,
     ):
         """
         Redibuja el gráfico.
@@ -171,6 +195,8 @@ class ERPPlotWidget(pg.PlotWidget):
         curvas_otro : Grand Average del otro método, superpuesto sin banda
                       (None si no se quiere superponer).
         reset_view  : True para reajustar el zoom (cambió canal/condición/método).
+        picos       : {grupo: (lat_ms, amp_uV)} para marcar el pico real del
+                      promedio del método seleccionado.
         """
         # Limpiar dinámicos previos.
         for it in self._items_dinamicos:
@@ -203,6 +229,14 @@ class ERPPlotWidget(pg.PlotWidget):
                 nombre = f"{config.NOMBRE_GRUPO[grupo]} · {metodo_otro}"
                 self._dibujar_linea(curva, grupo, color, metodo_otro, nombre,
                                     width=1.6, alpha=150)
+
+        # --- marcador del pico real del promedio (método seleccionado) --------
+        if picos:
+            for grupo, par in picos.items():
+                if par is None:
+                    continue
+                lat, amp = par
+                self._marcar_pico(lat, amp, config.COLOR_GRUPO[grupo])
 
         if reset_view:
             self.enableAutoRange()
@@ -237,6 +271,23 @@ class ERPPlotWidget(pg.PlotWidget):
             "t": curva.tiempo_ms,
             "y": curva.media,
         })
+
+    def _marcar_pico(self, lat: float, amp: float, color_hex: str):
+        """Punto en el pico positivo del promedio + etiqueta con la latencia."""
+        r, g, b = _hex_rgb(color_hex)
+        punto = pg.ScatterPlotItem(
+            [lat], [amp], symbol="o", size=11,
+            brush=pg.mkBrush(r, g, b, 255), pen=pg.mkPen("w", width=1.2),
+        )
+        punto.setZValue(30)
+        self.addItem(punto)
+        self._items_dinamicos.append(punto)
+
+        etq = pg.TextItem(f"{lat:.0f} ms", color=(r, g, b), anchor=(0.5, 1.4))
+        etq.setPos(lat, amp)
+        etq.setZValue(30)
+        self.addItem(etq)
+        self._items_dinamicos.append(etq)
 
     # -------------------------------------------------------------------------
     # Hover comparativo
