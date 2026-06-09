@@ -280,6 +280,7 @@ if __name__ == "__main__":
     n_total      = len(grupos)
     n_ok         = 0
     n_rechazados = 0
+    trial_artefacto = None  # guardará un trial rechazado para el gráfico
     resultados   = []
 
     for idx, (nombre, grupo) in enumerate(grupos):
@@ -293,6 +294,17 @@ if __name__ == "__main__":
             n_ok += 1
         else:
             n_rechazados += 1
+            # Guardar el primer trial rechazado para el gráfico
+            if trial_artefacto is None:
+                señal_art = grupo.sort_values("muestra")["valor_uV"].values.astype(float)
+                if len(señal_art) == 256 and np.any(np.abs(señal_art) > UMBRAL_UV):
+                    trial_artefacto = {
+                        "señal":     señal_art,
+                        "sujeto":    nombre[0],
+                        "trial_num": nombre[1],
+                        "canal":     nombre[2],
+                        "condicion": grupo["condicion"].iloc[0],
+                    }
 
     print(f"\nResultados del preprocesamiento:")
     print(f"  Trials procesados:  {n_ok:,}")
@@ -321,9 +333,11 @@ if __name__ == "__main__":
     print(resumen.to_string(index=False))
 
     # -------------------------------------------------------------------------
-    # Paso 5: Gráfico comparativo — señal cruda vs preprocesada (canal P8)
+    # Paso 5a: Gráfico comparativo — dos canales limpios (P8 y PO8)
     # -------------------------------------------------------------------------
-    print("\nGenerando gráfico comparativo cruda vs preprocesada (P8)...")
+    print("\nGenerando gráfico comparativo cruda vs preprocesada...")
+
+    tiempo_ms = np.arange(256) / FS * 1000
 
     sujeto_ej = df_proc[df_proc["grupo"] == "control"]["sujeto"].iloc[0]
     trial_ej  = df_proc[
@@ -332,59 +346,124 @@ if __name__ == "__main__":
         (df_proc["condicion"] == "S1 obj")
     ]["trial_num"].iloc[0]
 
-    señal_proc = df_proc[
-        (df_proc["sujeto"] == sujeto_ej) &
-        (df_proc["trial_num"] == trial_ej) &
-        (df_proc["canal"] == "P8")
-    ].sort_values("muestra")["valor_uV"].values
-
-    df_cruda_ej = df[
-        (df["sujeto"] == sujeto_ej) &
-        (df["trial_num"] == trial_ej) &
-        (df["canal"] == "P8")
-    ].sort_values("muestra")
-    señal_cruda = df_cruda_ej["valor_uV"].values
-
-    tiempo_ms = np.arange(256) / FS * 1000
-
-    fig, axes = plt.subplots(3, 1, figsize=(12, 9))
+    fig, axes = plt.subplots(3, 2, figsize=(16, 9), sharex=True)
     fig.suptitle(
-        f"Efecto del preprocesamiento — Canal P8 — "
-        f"Sujeto: {sujeto_ej} (control) — S1 obj",
+        f"Efecto del preprocesamiento — Sujeto: {sujeto_ej} (control) — "
+        f"Trial: {trial_ej} — S1 obj\n"
+        f"Izquierda: Canal P8  |  Derecha: Canal PO8",
         fontsize=12
     )
 
-    axes[0].plot(tiempo_ms, señal_cruda, color="#64748b", linewidth=1)
-    axes[0].set_ylabel("Amplitud (µV)")
-    axes[0].set_title("Señal cruda")
-    axes[0].axhline(0, color="black", linewidth=0.5)
-    axes[0].grid(True, alpha=0.3)
+    for col, canal in enumerate(["P8", "PO8"]):
+        señal_proc = df_proc[
+            (df_proc["sujeto"] == sujeto_ej) &
+            (df_proc["trial_num"] == trial_ej) &
+            (df_proc["canal"] == canal)
+        ].sort_values("muestra")["valor_uV"].values
 
-    axes[1].plot(tiempo_ms, señal_proc, color="#2563eb", linewidth=1)
-    axes[1].set_ylabel("Amplitud (µV)")
-    axes[1].set_title(
-        f"Señal preprocesada (Butterworth {F_LOW}–{F_HIGH} Hz + baseline)")
-    axes[1].axhline(0, color="black", linewidth=0.5)
-    axes[1].axvspan(220, 260, alpha=0.15, color="orange", label="Ventana c240")
-    axes[1].legend(fontsize=9)
-    axes[1].grid(True, alpha=0.3)
+        señal_cruda = df[
+            (df["sujeto"] == sujeto_ej) &
+            (df["trial_num"] == trial_ej) &
+            (df["canal"] == canal)
+        ].sort_values("muestra")["valor_uV"].values
 
-    diferencia = señal_cruda[:len(señal_proc)] - señal_proc
-    axes[2].plot(tiempo_ms[:len(diferencia)], diferencia,
-                 color="#dc2626", linewidth=1)
-    axes[2].axhline(0, color="black", linewidth=0.5)
-    axes[2].set_xlabel("Tiempo (ms)")
-    axes[2].set_ylabel("Amplitud (µV)")
-    axes[2].set_title(
-        "Diferencia (cruda − preprocesada) = componentes eliminados por el filtro"
-    )
-    axes[2].grid(True, alpha=0.3)
+        diferencia = señal_cruda[:len(señal_proc)] - señal_proc
+
+        # Fila 0: señal cruda
+        axes[0][col].plot(tiempo_ms, señal_cruda,
+                          color="#64748b", linewidth=1)
+        axes[0][col].set_title(f"Canal {canal} — Señal cruda", fontsize=10)
+        axes[0][col].set_ylabel("Amplitud (µV)")
+        axes[0][col].axhline(0, color="black", linewidth=0.5)
+        axes[0][col].grid(True, alpha=0.3)
+
+        # Fila 1: señal preprocesada
+        axes[1][col].plot(tiempo_ms, señal_proc,
+                          color="#2563eb", linewidth=1)
+        axes[1][col].set_title(
+            f"Canal {canal} — Preprocesada "
+            f"(Butterworth {F_LOW}–{F_HIGH} Hz + baseline)",
+            fontsize=10
+        )
+        axes[1][col].set_ylabel("Amplitud (µV)")
+        axes[1][col].axhline(0, color="black", linewidth=0.5)
+        axes[1][col].axvspan(220, 260, alpha=0.15,
+                             color="orange", label="Ventana c240")
+        axes[1][col].axvspan(290, 340, alpha=0.15,
+                             color="purple", label="Ventana c320")
+        axes[1][col].legend(fontsize=8)
+        axes[1][col].grid(True, alpha=0.3)
+
+        # Fila 2: diferencia
+        axes[2][col].plot(tiempo_ms[:len(diferencia)], diferencia,
+                          color="#dc2626", linewidth=1)
+        axes[2][col].axhline(0, color="black", linewidth=0.5)
+        axes[2][col].set_xlabel("Tiempo (ms)")
+        axes[2][col].set_ylabel("Amplitud (µV)")
+        axes[2][col].set_title(
+            f"Canal {canal} — Diferencia (cruda − preprocesada) = "
+            "componentes eliminados",
+            fontsize=10
+        )
+        axes[2][col].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_preprocesamiento.png",
+    plt.savefig("../outputs/figura_preprocesamiento_canales.png",
                 dpi=150, bbox_inches="tight")
     plt.show()
-    print("  Figura guardada como 'figura_preprocesamiento.png'")
+    print("  Figura guardada: 'figura_preprocesamiento_canales.png'")
+
+    # -------------------------------------------------------------------------
+    # Paso 5b: Gráfico de trial rechazado por artefacto
+    # -------------------------------------------------------------------------
+    if trial_artefacto is not None:
+        fig, ax = plt.subplots(figsize=(12, 4))
+        señal_art = trial_artefacto["señal"]
+
+        # Aplicar filtro para mostrar cómo quedaría si no se rechazara
+        b, a = disenar_filtro_butterworth(F_LOW, F_HIGH, FS, ORDEN)
+        señal_art_filt = aplicar_filtro(señal_art, b, a)
+        señal_art_filt = corregir_baseline(señal_art_filt, N_BASELINE)
+
+        ax.plot(tiempo_ms, señal_art, color="#64748b",
+                linewidth=1, label="Señal cruda", zorder=2)
+        ax.plot(tiempo_ms, señal_art_filt, color="#2563eb",
+                linewidth=1, label="Tras filtro (sin rechazar)", zorder=3)
+        ax.axhline( UMBRAL_UV, color="red", linestyle="--",
+                   linewidth=1.5, label=f"Umbral +{UMBRAL_UV} µV", zorder=4)
+        ax.axhline(-UMBRAL_UV, color="red", linestyle="--",
+                   linewidth=1.5, label=f"Umbral -{UMBRAL_UV} µV", zorder=4)
+
+        # Marcar los puntos que superan el umbral
+        mask_art = np.abs(señal_art) > UMBRAL_UV
+        if mask_art.any():
+            ax.scatter(tiempo_ms[mask_art], señal_art[mask_art],
+                      color="red", s=20, zorder=5,
+                      label=f"Muestras fuera de umbral "
+                            f"({mask_art.sum()} puntos)")
+
+        ax.axhline(0, color="black", linewidth=0.5)
+        ax.set_xlabel("Tiempo (ms)")
+        ax.set_ylabel("Amplitud (µV)")
+        ax.set_title(
+            f"Trial RECHAZADO por artefacto — "
+            f"Sujeto: {trial_artefacto['sujeto']} — "
+            f"Canal: {trial_artefacto['canal']} — "
+            f"Trial: {trial_artefacto['trial_num']}\n"
+            f"Motivo: amplitud supera ±{UMBRAL_UV} µV en "
+            f"{mask_art.sum()} muestras",
+            fontsize=11
+        )
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig("../outputs/figura_preprocesamiento_artefacto.png",
+                    dpi=150, bbox_inches="tight")
+        plt.show()
+        print("  Figura guardada: 'figura_preprocesamiento_artefacto.png'")
+    else:
+        print("  No se encontró ningún trial rechazado para graficar.")
 
     # -------------------------------------------------------------------------
     # Guardar resultado (sin la columna auxiliar 'hemisferio')
