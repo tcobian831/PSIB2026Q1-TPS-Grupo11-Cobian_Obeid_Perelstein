@@ -253,45 +253,6 @@ def imprimir_grupos(tab, titulo, h1):
               f"{r['p_fdr']:>11.2e} {marca}")
  
  
-def imprimir_lateralizacion(tab):
-    print(f"\n{'='*88}")
-    print("LATERALIZACION (hemisferio derecho vs izquierdo)")
-    print("NOTA: en estos datos el efecto control>alcoholico es BILATERAL.")
-    print("Los canales izquierdos (P7, PO7) muestran separaciones iguales o")
-    print("mayores que sus homologos derechos. Difiere de Zhang et al. (1997).")
-    print(f"{'='*88}")
- 
-    print("\n  (a) PAREADO R vs L — H1: R > L")
-    print(f"      {'Par':<10}{'Cond.':<12}{'R':>8}{'L':>8}"
-          f"{'LI':>8}{'t':>7}{'p':>11}{'p(FDR)':>11}")
-    print("      " + "-" * 67)
-    for _, r in tab.iterrows():
-        marca = "+" if r.get("p_RvsL_fdr", 1) < ALPHA else (
-                "*" if r["p_RvsL"] < ALPHA else " ")
-        print(f"      {r['par']:<10}{r['condicion']:<12}"
-              f"{r['media_R']:>+8.2f}{r['media_L']:>+8.2f}"
-              f"{r['media_LI']:>+8.2f}{r['t_RvsL']:>7.2f}"
-              f"{r['p_RvsL']:>11.2e}"
-              f"{r.get('p_RvsL_fdr', np.nan):>11.2e} {marca}")
- 
-    if "p_LI" not in tab.columns:
-        return
-    print("\n  (b) LI = R - L ENTRE GRUPOS — H1: LI_control > LI_alcoholico")
-    print(f"      {'Par':<10}{'Cond.':<12}{'LI ctrl':>9}{'LI alc':>9}"
-          f"{'dif':>8}{'d':>7}{'t':>7}{'p':>11}{'p(FDR)':>11}")
-    print("      " + "-" * 75)
-    for _, r in tab.iterrows():
-        if pd.isna(r.get("p_LI", np.nan)):
-            continue
-        marca = "+" if r.get("p_LI_fdr", 1) < ALPHA else (
-                "*" if r["p_LI"] < ALPHA else " ")
-        print(f"      {r['par']:<10}{r['condicion']:<12}"
-              f"{r['LI_ctrl']:>+9.2f}{r['LI_alc']:>+9.2f}"
-              f"{r['dif_LI']:>+8.2f}{r['d_LI']:>7.2f}"
-              f"{r['t_LI']:>7.2f}{r['p_LI']:>11.2e}"
-              f"{r.get('p_LI_fdr', np.nan):>11.2e} {marca}")
- 
- 
 def resumen_bloque(tab, label):
     n = len(tab)
     if n == 0:
@@ -666,12 +627,10 @@ if __name__ == "__main__":
  
     # =========================================================================
     # BLOQUE 4: LATERALIZACION
+    # Se calcula y se guarda en tabla_lateralizacion.csv (+ figuras mas abajo).
+    # No se imprime en consola: era redundante con el CSV.
     # =========================================================================
-    print("\n\n" + "#" * 88)
-    print("  BLOQUE 4: LATERALIZACION")
-    print("#" * 88)
     tab_lateral = tabla_lateralizacion(df, COL_MEDIA_C240)
-    imprimir_lateralizacion(tab_lateral)
  
     # =========================================================================
     # BLOQUE 5: ANALISIS SECUNDARIO — inhomogeneo (robustez)
