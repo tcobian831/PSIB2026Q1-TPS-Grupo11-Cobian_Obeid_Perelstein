@@ -35,6 +35,20 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from pathlib import Path
 from scipy.signal import welch
+import os
+import sys
+
+# El script corre desde cualquier carpeta: anclamos el CWD a la raiz del proyecto
+# (donde esta outputs/) para que todas las rutas relativas resuelvan igual.
+os.chdir(Path(__file__).resolve().parent.parent)
+Path("outputs").mkdir(exist_ok=True)
+
+# Salida UTF-8 robusta: evita UnicodeEncodeError al redirigir/pipear en Windows.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 
 # =============================================================================
 # CONFIGURACIÓN
@@ -51,7 +65,7 @@ CANALES_INTERES   = CANALES_DERECHO + CANALES_IZQUIERDO
 # Cuántos trials de ejemplo mostrar por grupo en el dominio del tiempo
 N_TRIALS_EJEMPLO = 5
 
-ENTRADA = Path("../outputs/eeg_data_cargado.parquet") 
+ENTRADA = Path("outputs/eeg_data_cargado.parquet") 
 
 # =============================================================================
 # FUNCIONES — DOMINIO DEL TIEMPO
@@ -122,7 +136,7 @@ def graficar_señales_tiempo(df: pd.DataFrame):
                 ax.set_xlabel("Tiempo (ms)", fontsize=9)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_exploracion_tiempo.png", dpi=150, bbox_inches="tight")
+    plt.savefig("outputs/figura_exploracion_tiempo.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_exploracion_tiempo.png'")
 
@@ -203,7 +217,7 @@ def graficar_señales_multicanal(df: pd.DataFrame,
                 ax.set_xlabel("Tiempo (ms)", fontsize=9)
 
     plt.tight_layout()
-    plt.savefig(f"../outputs/{nombre_archivo}", 
+    plt.savefig(f"outputs/{nombre_archivo}", 
                 dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{nombre_archivo}'")
@@ -345,7 +359,7 @@ def graficar_psd(df: pd.DataFrame, canales: list,
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.subplots_adjust(hspace=0.5)
-    plt.savefig(f"../outputs/{nombre_archivo}",
+    plt.savefig(f"outputs/{nombre_archivo}",
                 dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{nombre_archivo}'")
@@ -407,7 +421,7 @@ def graficar_distribucion_amplitudes(df: pd.DataFrame, canales: list,
             ax.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(f"../outputs/{nombre_archivo}",
+    plt.savefig(f"outputs/{nombre_archivo}",
                 dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{nombre_archivo}'")

@@ -7,7 +7,7 @@ La app NO recalcula nada desde los trials crudos. Consume:
   - eeg_PE_inhomogeneo.parquet   idem, promediado inhomogéneo            (Script 04)
   - eeg_c240_extraido.csv        métricas por sujeto (media/max/lat/auc)  (Script 05)
   - tabla_snr_comparacion.csv    SNR par/impar por sujeto (cohorte 45+45) (Script 04)
-  - tabla_estadistica.csv        contrastes oficiales Welch + FDR         (Script 06)
+  - tabla_estadistica.csv        comparación descriptiva entre grupos     (Script 06)
 
 Si falta CUALQUIERA de los obligatorios, NO se inventa un fallback: se lanza
 MissingDataError con la lista de faltantes y el script que los regenera.
@@ -28,12 +28,12 @@ from . import config
 REQUERIDOS = {
     "pe_homogeneo": (
         "eeg_PE_homogeneo.parquet",
-        "scripts/04_promediado_v2.py",
+        "scripts/04_promediado.py",
         "PE individual (promediado homogéneo) por sujeto/canal/condición.",
     ),
     "pe_inhomogeneo": (
         "eeg_PE_inhomogeneo.parquet",
-        "scripts/04_promediado_v2.py",
+        "scripts/04_promediado.py",
         "PE individual (promediado inhomogéneo).",
     ),
     "c240": (
@@ -43,13 +43,13 @@ REQUERIDOS = {
     ),
     "snr": (
         "tabla_snr_comparacion.csv",
-        "scripts/04_promediado_v2.py",
+        "scripts/04_promediado.py",
         "SNR par/impar por sujeto (cohorte de referencia 45+45).",
     ),
     "estadistica": (
         "tabla_estadistica.csv",
         "scripts/06_estadistica.py",
-        "Contrastes oficiales Welch (una cola) + Cohen's d + FDR.",
+        "Comparación descriptiva entre grupos (media, SD y diferencia).",
     ),
 }
 

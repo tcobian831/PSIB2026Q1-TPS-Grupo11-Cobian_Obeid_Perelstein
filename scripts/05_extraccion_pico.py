@@ -28,14 +28,12 @@ Proposito:
       - lat_max_c240 / lat_max_c320 : latencia del maximo positivo (ms).
       - auc_c240 / auc_c320 : area con signo bajo la curva (uV*ms, trapecio).
         Complementaria al pico: integra toda la deflexion.
-        Mejora futura (no implementada): fractional area latency.
+    
 
     Se usa como entrada tanto el PE HOMOGENEO como el INHOMOGENEO del Script 04.
     El Script 06 lidera con el homogeneo como analisis principal y usa el
     inhomogeneo como analisis secundario.
 
-    Nota sobre rechazo de artefactos (Script 03): el umbral +-100 uV esta lejos
-    de las colas de los datos (~+-50 uV). El rechazo real fue 0.1% de los trials.
 
 Entrada:  outputs/eeg_PE_homogeneo.parquet
           outputs/eeg_PE_inhomogeneo.parquet    (ambos del Script 04, muestra COMPLETA)
@@ -55,6 +53,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import os
+import sys
+
+# El script corre desde cualquier carpeta: anclamos el CWD a la raiz del proyecto
+# (donde esta outputs/) para que todas las rutas relativas resuelvan igual.
+os.chdir(Path(__file__).resolve().parent.parent)
+Path("outputs").mkdir(exist_ok=True)
+
+# Salida UTF-8 robusta: evita UnicodeEncodeError al redirigir/pipear en Windows.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 
 # =============================================================================
 # CONFIGURACION
@@ -81,11 +93,11 @@ M_C320_LO = int(round(V_C320[0] / 1000 * FS))
 M_C320_HI = int(round(V_C320[1] / 1000 * FS))
 
 METODOS = {
-    "homogeneo":   Path("../outputs/eeg_PE_homogeneo.parquet"),
-    "inhomogeneo": Path("../outputs/eeg_PE_inhomogeneo.parquet"),
+    "homogeneo":   Path("outputs/eeg_PE_homogeneo.parquet"),
+    "inhomogeneo": Path("outputs/eeg_PE_inhomogeneo.parquet"),
 }
 
-SALIDA_CSV = Path("../outputs/eeg_c240_extraido.csv")
+SALIDA_CSV = Path("outputs/eeg_c240_extraido.csv")
 
 # =============================================================================
 # FUNCIONES DE EXTRACCION
@@ -154,32 +166,12 @@ def extraer_todos(pe_ind: pd.DataFrame, metodo: str) -> pd.DataFrame:
 
 
 # =============================================================================
-# COHEN'S D
-# =============================================================================
-
-def cohens_d(ctrl_vals, alc_vals):
-    """
-    Cohen's d para dos muestras independientes (pooled SD).
-    d > 0 indica que el primer grupo (control) tiene media mayor.
-    """
-    n1, n2 = len(ctrl_vals), len(alc_vals)
-    if n1 < 2 or n2 < 2:
-        return np.nan
-    m1, m2 = ctrl_vals.mean(), alc_vals.mean()
-    s1, s2 = ctrl_vals.std(ddof=1), alc_vals.std(ddof=1)
-    sp = np.sqrt(((n1 - 1) * s1**2 + (n2 - 1) * s2**2) / (n1 + n2 - 2))
-    if sp < 1e-12:
-        return np.nan
-    return (m1 - m2) / sp
-
-
-# =============================================================================
 # RESUMEN DESCRIPTIVO
 # =============================================================================
 
 def imprimir_resumen(df_all, metodo, col_media, ventana_label):
     """
-    Imprime media +- SD por grupo, diferencia y Cohen's d.
+    Imprime media +- SD por grupo y diferencia.
     """
     df = df_all[df_all["metodo"] == metodo]
     print(f"\n{'='*76}")
@@ -187,7 +179,7 @@ def imprimir_resumen(df_all, metodo, col_media, ventana_label):
     print(f"Metrica: {col_media} (media en ventana)")
     print(f"{'='*76}")
     print(f"  {'Canal':<6}{'Cond.':<12}{'Control':>14}{'Alcoholico':>16}"
-          f"{'Dif.':>9}{'d':>7}{'N ctrl':>7}{'N alc':>7}")
+          f"{'Dif.':>9}{'N ctrl':>7}{'N alc':>7}")
     print("  " + "-" * 73)
     for canal in CANALES_INTERES:
         for cond in CONDICIONES:
@@ -198,10 +190,9 @@ def imprimir_resumen(df_all, metodo, col_media, ventana_label):
                 continue
             mc, sc = ctrl.mean(), ctrl.std(ddof=1)
             ma, sa = alc.mean(), alc.std(ddof=1)
-            d = cohens_d(ctrl, alc)
             print(f"  {canal:<6}{cond:<12}"
                   f"{mc:>+7.2f} +- {sc:>4.2f}{ma:>+8.2f} +- {sa:>4.2f}"
-                  f"{mc-ma:>+9.2f}{d:>7.2f}{len(ctrl):>7}{len(alc):>7}")
+                  f"{mc-ma:>+9.2f}{len(ctrl):>7}{len(alc):>7}")
 
 
 # =============================================================================
@@ -257,7 +248,7 @@ def graficar_boxplots(df_pico, metodo, col_amp, ventana_label,
             ax.grid(True, axis="y", alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
+    plt.savefig(f"outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{out_file}'")
 
@@ -295,7 +286,7 @@ def graficar_latencia(df_all, metodo, col_lat, ventana_label,
                 ax.legend(fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
+    plt.savefig(f"outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{out_file}'")
 

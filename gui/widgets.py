@@ -11,9 +11,9 @@ Sidebar (panel lateral fijo):
 
 Panel de KPIs (sobre el gráfico):
   • Métrica PRINCIPAL = media en ventana c240 (no el máximo).
-  • media ± SD por grupo, diferencia, Cohen's d, p-Welch (una cola, en vivo).
+  • media ± SD por grupo y diferencia control - alcohólico (en vivo).
   • SNR (homogéneo / inhomogéneo) con nota honesta sobre la circularidad.
-  • Referencia oficial del Script 06 (77 vs 45, con FDR) y métricas secundarias.
+  • Referencia oficial del Script 06 (muestra completa 77 vs 45) y secundarios.
 """
 
 from __future__ import annotations

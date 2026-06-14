@@ -1,19 +1,16 @@
 """
-stats.py — Métricas y contrastes para el panel de KPIs.
+stats.py — Métricas descriptivas para el panel de KPIs.
 
-Réplica EXACTA de las fórmulas de los Scripts 05/06:
-
-  • cohens_d(x, y): pooled SD, d>0 => x tiene media mayor   (Scripts 05 y 06)
-  • Welch una cola: stats.ttest_ind(ctrl, alc, equal_var=False,
-                                    alternative='greater')   (Script 06)
+Réplica de las fórmulas descriptivas del Script 06:
+  - media ± SD por grupo y diferencia control - alcohólico, en la ventana c240.
 
 Política HÍBRIDA (elegida con el usuario):
-  - KPI EN VIVO: se recalcula media_c240 ± SD / Cohen's d / p-Welch sobre la
-    cohorte actual del slider (n_alc + 45 ctrl) a partir de eeg_c240_extraido.csv,
-    para que coincida con el Grand Average mostrado.
+  - KPI EN VIVO: se recalcula media_c240 ± SD sobre la cohorte actual del slider
+    (n_alc + 45 ctrl) a partir de eeg_c240_extraido.csv, para que coincida con el
+    Grand Average mostrado.
     (Verificado: a n=77 reproduce tabla_estadistica.csv a precisión de máquina.)
   - REFERENCIA OFICIAL: se muestran además los valores del Script 06 sobre la
-    muestra completa 77 vs 45 (incluido p_fdr), tomados de tabla_estadistica.csv.
+    muestra completa 77 vs 45, tomados de tabla_estadistica.csv.
 
 La métrica PRINCIPAL es la MEDIA en ventana (media_c240), nunca el máximo.
 """
@@ -24,32 +21,8 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from scipy import stats as st
 
 from . import config
-
-
-# =============================================================================
-# Fórmulas base (idénticas a los scripts)
-# =============================================================================
-def cohens_d(x: np.ndarray, y: np.ndarray) -> float:
-    """Cohen's d con pooled SD. d>0 => x tiene media mayor. (Scripts 05/06)."""
-    n1, n2 = len(x), len(y)
-    if n1 < 2 or n2 < 2:
-        return float("nan")
-    s1, s2 = x.std(ddof=1), y.std(ddof=1)
-    sp = np.sqrt(((n1 - 1) * s1**2 + (n2 - 1) * s2**2) / (n1 + n2 - 2))
-    if sp < config.EPS:
-        return float("nan")
-    return float((x.mean() - y.mean()) / sp)
-
-
-def welch_greater(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
-    """T-test de Welch, H1: media(a) > media(b). Devuelve (t, p). (Script 06)."""
-    if len(a) < 2 or len(b) < 2:
-        return float("nan"), float("nan")
-    t, p = st.ttest_ind(a, b, equal_var=False, alternative="greater")
-    return float(t), float(p)
 
 
 # =============================================================================
@@ -70,9 +43,6 @@ class KpiVivo:
     alcoholic_media: float
     alcoholic_sd: float
     diferencia: float          # control - alcohólico
-    cohens_d: float
-    t_welch: float
-    p_welch: float             # H1: control > alcohólico (una cola)
     # Secundarios (medias por grupo) — claramente etiquetados como tales
     control_max: float
     alcoholic_max: float
@@ -116,8 +86,6 @@ def kpi_en_vivo(
 
     mc, sc = _media_sd(c_media)
     ma, sa = _media_sd(a_media)
-    d = cohens_d(c_media, a_media)
-    t, p = welch_greater(c_media, a_media)
 
     def media_de(df, col):
         v = df[col].dropna().to_numpy()
@@ -134,9 +102,6 @@ def kpi_en_vivo(
         alcoholic_media=ma,
         alcoholic_sd=sa,
         diferencia=mc - ma,
-        cohens_d=d,
-        t_welch=t,
-        p_welch=p,
         control_max=media_de(ctrl, "max_c240"),
         alcoholic_max=media_de(alc, "max_c240"),
         control_lat=media_de(ctrl, "lat_max_c240"),
@@ -159,10 +124,6 @@ class KpiOficial:
     alcoholic_media: float = float("nan")
     alcoholic_sd: float = float("nan")
     diferencia: float = float("nan")
-    cohens_d: float = float("nan")
-    p_welch: float = float("nan")
-    p_fdr: float = float("nan")
-    sig_fdr: bool = False
     n_control: int = 0
     n_alcoholic: int = 0
 
@@ -194,10 +155,6 @@ def kpi_oficial(
         alcoholic_media=float(r["alcoholic_media"]),
         alcoholic_sd=float(r["alcoholic_sd"]),
         diferencia=float(r["diferencia"]),
-        cohens_d=float(r["cohens_d"]),
-        p_welch=float(r["p_welch"]),
-        p_fdr=float(r["p_fdr"]),
-        sig_fdr=bool(r["sig_fdr"]),
         n_control=int(r["n_control"]),
         n_alcoholic=int(r["n_alcoholic"]),
     )

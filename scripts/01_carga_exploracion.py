@@ -38,7 +38,23 @@ from collections import defaultdict
 # =============================================================================
 
 # Ruta a la carpeta que contiene los .tar.gz de cada sujeto
-DATA_DIR = Path("../data/eeg_full")
+# Carpeta raíz del proyecto, independientemente de dónde se ejecute Python
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+
+# Los archivos .tar.gz están directamente dentro de data
+DATA_DIR = PROJECT_DIR / "data/eeg_full"
+
+# Carpeta de resultados
+OUTPUT_DIR = PROJECT_DIR / "outputs"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Salida UTF-8 robusta: evita UnicodeEncodeError al redirigir/pipear en Windows.
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 
 # Frecuencia de muestreo del dataset (256 Hz)
 FS = 256  # Hz
@@ -215,7 +231,7 @@ def cargar_dataset(data_dir: Path, max_sujetos: int = None) -> pd.DataFrame:
             continue
 
         df_bloque = pd.concat(todos_trials, ignore_index=True)
-        nombre_parcial = f"eeg_parcial_{bloque_i:02d}.parquet"
+        nombre_parcial = OUTPUT_DIR / f"eeg_parcial_{bloque_i:02d}.parquet"
         df_bloque.to_parquet(nombre_parcial, index=False)
         parquet_parciales.append(nombre_parcial)
         print(f"  -> Bloque {bloque_i} guardado ({len(df_bloque):,} filas)")
@@ -319,7 +335,7 @@ def graficar_trial_ejemplo(df: pd.DataFrame, canal: str = "P8"):
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_trial_ejemplo.png", dpi=150, bbox_inches="tight")
+    plt.savefig(OUTPUT_DIR / "figura_trial_ejemplo.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("Figura guardada como 'figura_trial_ejemplo.png'")
 
@@ -355,7 +371,7 @@ def graficar_distribucion_trials(df: pd.DataFrame):
     ax.legend()
     ax.grid(axis="y", alpha=0.3)
     plt.tight_layout()
-    plt.savefig("../outputs/figura_distribucion_trials.png", dpi=150, bbox_inches="tight")
+    plt.savefig(OUTPUT_DIR / "figura_distribucion_trials.png", dpi=150, bbox_inches="tight")
     plt.show()
     print("Figura guardada como 'figura_distribucion_trials.png'")
 
@@ -399,11 +415,8 @@ if __name__ == "__main__":
     graficar_distribucion_trials(df)
 
     # Guardar el DataFrame cargado para los scripts siguientes
-    # 1. Definimos la ruta a la carpeta Outputs (un nivel arriba, luego entramos a Outputs)
-    directorio_salida = Path("../outputs")
-    
-    # 2. Definimos la ruta final del archivo
-    salida = directorio_salida / "eeg_data_cargado.parquet"
+    # Ruta absoluta a outputs/ (independiente del CWD desde el que se corra).
+    salida = OUTPUT_DIR / "eeg_data_cargado.parquet"
     
     # 3. Guardamos el archivo
     df.to_parquet(salida, index=False)

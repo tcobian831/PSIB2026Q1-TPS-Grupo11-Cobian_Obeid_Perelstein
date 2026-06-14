@@ -4,10 +4,9 @@ TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
 Grupo 11: Cobián, Obeid, Perelstein
 
-Script 04: Promediado de Trials — Homogéneo vs Inhomogéneo  [VERSIÓN 2]
+Script 04: Promediado de Trials — Homogéneo vs Inhomogéneo  
 ==============================================================================
 
-Cambios respecto a la versión anterior:
 
   1. IGUALACIÓN DE GRUPOS
      El dataset tiene 77 alcohólicos y 45 controles. Para que el Grand
@@ -16,12 +15,9 @@ Cambios respecto a la versión anterior:
      Esto asegura reproducibilidad y elimina el sesgo que introduce tener
      más realizaciones en un grupo que en el otro al calcular la media.
 
-  2. SNR CORREGIDA SEGÚN TEORÍA DE CLASE (slides de Potenciales Evocados)
-     La versión anterior usaba SNR = var(promedio) / var(promedio_±), donde
-     el denominador era el promedio con signos alternados.
-     Eso NO es la SNR del promedio del ensamble tal como la define la teoría.
+  2. SNR CORREGIDA 
 
-     Definición correcta (slides):
+     Definición:
          SNR = Potencia(señal estimada) / Potencia(ruido estimado)
 
      Implementación:
@@ -73,6 +69,20 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import os
+import sys
+
+# El script corre desde cualquier carpeta: anclamos el CWD a la raiz del proyecto
+# (donde esta outputs/) para que todas las rutas relativas resuelvan igual.
+os.chdir(Path(__file__).resolve().parent.parent)
+Path("outputs").mkdir(exist_ok=True)
+
+# Salida UTF-8 robusta: evita UnicodeEncodeError al redirigir/pipear en Windows.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 
 # =============================================================================
 # CONFIGURACIÓN
@@ -91,13 +101,13 @@ CANALES_INTERES   = CANALES_DERECHO + CANALES_IZQUIERDO
 CONDICIONES = ["S1 obj", "S2 nomatch"]
 EPS = 1e-12
 
-ENTRADA          = Path("../outputs/eeg_data_preprocesado.parquet")
-SALIDA_HOM       = Path("../outputs/eeg_PE_homogeneo.parquet")
-SALIDA_INH       = Path("../outputs/eeg_PE_inhomogeneo.parquet")
-SALIDA_GA_HOM    = Path("../outputs/eeg_GA_homogeneo.parquet")
-SALIDA_GA_INH    = Path("../outputs/eeg_GA_inhomogeneo.parquet")
-SALIDA_SNR       = Path("../outputs/tabla_snr_comparacion.csv")
-SALIDA_SUJETOS   = Path("../outputs/sujetos_seleccionados.csv")
+ENTRADA          = Path("outputs/eeg_data_preprocesado.parquet")
+SALIDA_HOM       = Path("outputs/eeg_PE_homogeneo.parquet")
+SALIDA_INH       = Path("outputs/eeg_PE_inhomogeneo.parquet")
+SALIDA_GA_HOM    = Path("outputs/eeg_GA_homogeneo.parquet")
+SALIDA_GA_INH    = Path("outputs/eeg_GA_inhomogeneo.parquet")
+SALIDA_SNR       = Path("outputs/tabla_snr_comparacion.csv")
+SALIDA_SUJETOS   = Path("outputs/sujetos_seleccionados.csv")
 
 # =============================================================================
 # IGUALACIÓN DE GRUPOS
@@ -224,7 +234,7 @@ def promedio_inhomogeneo(X: np.ndarray) -> np.ndarray:
 
 
 # =============================================================================
-# SNR — DEFINICIÓN CORRECTA SEGÚN TEORÍA DE CLASE
+# SNR 
 # =============================================================================
 
 def snr_ensamble(X: np.ndarray, pesos: np.ndarray = None) -> float:
@@ -401,7 +411,7 @@ def calcular_grand_average(pe_df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =============================================================================
-# COMPARACIÓN DE SNR — IMPRESIÓN EN CONSOLA
+# COMPARACIÓN DE SNR 
 # =============================================================================
 
 def comparar_snr(snr_df: pd.DataFrame):
@@ -530,7 +540,7 @@ def graficar_grand_average(ga_hom: pd.DataFrame, ga_inh: pd.DataFrame,
                 ax.legend(fontsize=7, loc="upper right")
 
     plt.tight_layout()
-    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
+    plt.savefig(f"outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{out_file}'")
 
@@ -584,7 +594,7 @@ def graficar_snr(snr_df: pd.DataFrame, canales=None, hemi_label="",
         ax.grid(True, axis="y", alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
+    plt.savefig(f"outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{out_file}'")
 
@@ -624,9 +634,7 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     # Calculo de PE individual + SNR  (TODOS los sujetos: 77 alc + 45 ctrl)
     # -------------------------------------------------------------------------
-    # NOTA: el PE se calcula para TODOS los sujetos porque el Script 06 necesita
-    # la muestra completa (77 vs 45) para el t-test (Welch maneja N desigual).
-    # La igualacion a 45+45 se aplica SOLO al Grand Average.
+   
     print("\nCalculando PE individuales (homogeneo e inhomogeneo) + SNR...")
     print("  (TODOS los sujetos -- 77 alc + 45 ctrl -- para inferencia completa)")
     pe_hom, pe_inh, snr_df = calcular_PE_individual(df)

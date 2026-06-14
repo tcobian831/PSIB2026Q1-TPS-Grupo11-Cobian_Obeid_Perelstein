@@ -4,7 +4,7 @@ TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
 Grupo 11: Cobián, Obeid, Perelstein
 
-Script 03: Preprocesamiento de Señales EEG  [VERSIÓN 2 — modificado]
+Script 03: Preprocesamiento de Señales EEG  
 ==============================================================================
 
 Pasos:
@@ -40,6 +40,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from scipy.signal import butter, filtfilt
+import os
+import sys
+
+# El script corre desde cualquier carpeta: anclamos el CWD a la raiz del proyecto
+# (donde esta outputs/) para que todas las rutas relativas resuelvan igual.
+os.chdir(Path(__file__).resolve().parent.parent)
+Path("outputs").mkdir(exist_ok=True)
+
+# Salida UTF-8 robusta: evita UnicodeEncodeError al redirigir/pipear en Windows.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 
 # =============================================================================
 # CONFIGURACIÓN
@@ -77,8 +91,8 @@ CANALES_INTERES   = CANALES_DERECHO + CANALES_IZQUIERDO   # 8 canales en total
 CONDICIONES_INTERES = ["S1 obj", "S2 nomatch"]
 
 # Rutas
-ENTRADA  = Path("../outputs/eeg_data_cargado.parquet")
-SALIDA   = Path("../outputs/eeg_data_preprocesado.parquet")
+ENTRADA  = Path("outputs/eeg_data_cargado.parquet")
+SALIDA   = Path("outputs/eeg_data_preprocesado.parquet")
 
 # =============================================================================
 # FUNCIONES
@@ -408,7 +422,7 @@ if __name__ == "__main__":
         axes[2][col].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("../outputs/figura_preprocesamiento_canales.png",
+    plt.savefig("outputs/figura_preprocesamiento_canales.png",
                 dpi=150, bbox_inches="tight")
     plt.show()
     print("  Figura guardada: 'figura_preprocesamiento_canales.png'")
@@ -458,7 +472,7 @@ if __name__ == "__main__":
         ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
-        plt.savefig("../outputs/figura_preprocesamiento_artefacto.png",
+        plt.savefig("outputs/figura_preprocesamiento_artefacto.png",
                     dpi=150, bbox_inches="tight")
         plt.show()
         print("  Figura guardada: 'figura_preprocesamiento_artefacto.png'")

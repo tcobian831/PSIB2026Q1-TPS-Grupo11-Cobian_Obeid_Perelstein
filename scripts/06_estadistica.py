@@ -13,7 +13,7 @@ Proposito:
  
     H1 (principal): Los controles tienen mayor amplitud del VMP que los
         alcoholicos en la region temporooccipital.
-        → Confirmada: 16/16 tests significativos tras FDR (p < 0.001).
+        → Confirmada: 16/16 tests significativos (p < 0.001).
  
     H2 (secundaria): El efecto es mas pronunciado en hemisferio derecho.
         → Parcialmente confirmada: leve dominancia derecha en P8/PO8 y
@@ -24,27 +24,23 @@ Proposito:
     VENTANA SECUNDARIA: 290-340 ms (c320, donde cae el pico real en
         nuestros datos por ausencia de baseline pre-estimulo).
     METRICA: media de la senal en la ventana.
-    MUESTRA: 77 alcoholicos vs 45 controles (Welch maneja N desigual).
-    CORRECCION: FDR de Benjamini-Hochberg.
+    MUESTRA: 77 alcoholicos vs 45 controles.
+    ANALISIS: comparacion descriptiva (medias, SD, diferencia ctrl-alc).
  
 Bloques:
     1a. Amplitud media c240 (ventana primaria)
     1b. Amplitud media c320 (ventana secundaria)
     2.  AUC c240
     3.  Latencia c240 y c320 (nota: poco informativa, ver comentarios)
-    4.  Lateralizacion hemisferica
     5.  Analisis secundario: metodo inhomogeneo (robustez)
     6.  Metricas descriptivas simples (H1 y H2)
  
 Entrada:  outputs/eeg_c240_extraido.csv  (del Script 05)
 Salida:   outputs/tabla_estadistica.csv
-          outputs/tabla_lateralizacion.csv
           outputs/figura_barras_derecho_c240.png
           outputs/figura_barras_izquierdo_c240.png
           outputs/figura_barras_derecho_c320.png
           outputs/figura_barras_izquierdo_c320.png
-          outputs/figura_lateralizacion_c240.png
-          outputs/figura_lateralizacion_c320.png
  
 Uso:
     Correr desde la carpeta scripts/
@@ -56,8 +52,21 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from scipy import stats
- 
+import os
+import sys
+
+# El script corre desde cualquier carpeta: anclamos el CWD a la raiz del proyecto
+# (donde esta outputs/) para que todas las rutas relativas resuelvan igual.
+os.chdir(Path(__file__).resolve().parent.parent)
+Path("outputs").mkdir(exist_ok=True)
+
+# Salida UTF-8 robusta: evita UnicodeEncodeError al redirigir/pipear en Windows.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 # =============================================================================
 # CONFIGURACION
 # =============================================================================
@@ -77,62 +86,19 @@ COL_AUC_C240   = "auc_c240"
 COL_AUC_C320   = "auc_c320"
 COL_LAT_C240   = "lat_max_c240"
 COL_LAT_C320   = "lat_max_c320"
- 
-ALPHA = 0.05
- 
-ENTRADA        = Path("../outputs/eeg_c240_extraido.csv")
-SALIDA_CSV     = Path("../outputs/tabla_estadistica.csv")
-SALIDA_LATERAL = Path("../outputs/tabla_lateralizacion.csv")
+
+ENTRADA        = Path("outputs/eeg_c240_extraido.csv")
+SALIDA_CSV     = Path("outputs/tabla_estadistica.csv")
  
  
 # =============================================================================
-# COHEN'S D
+# CONTRASTE ENTRE GRUPOS (DESCRIPTIVO)
 # =============================================================================
- 
-def cohens_d(x, y):
-    """Cohen's d (pooled SD). d > 0 => x tiene media mayor."""
-    n1, n2 = len(x), len(y)
-    if n1 < 2 or n2 < 2:
-        return np.nan
-    s1, s2 = x.std(ddof=1), y.std(ddof=1)
-    sp = np.sqrt(((n1-1)*s1**2 + (n2-1)*s2**2) / (n1+n2-2))
-    return (x.mean() - y.mean()) / sp if sp > 1e-12 else np.nan
- 
- 
-# =============================================================================
-# FDR (Benjamini-Hochberg)
-# =============================================================================
- 
-def bh_fdr(pvals) -> np.ndarray:
-    """p-values ajustados por FDR de Benjamini-Hochberg. NaN preservados."""
-    p = np.asarray(pvals, dtype=float)
-    out = np.full(p.shape, np.nan)
-    mask = ~np.isnan(p)
-    pm = p[mask]
-    n = len(pm)
-    if n == 0:
-        return out
-    order = np.argsort(pm)
-    ranked = np.empty(n)
-    cummin = 1.0
-    for i in range(n - 1, -1, -1):
-        idx = order[i]
-        val = pm[idx] * n / (i + 1)
-        cummin = min(cummin, val)
-        ranked[idx] = min(cummin, 1.0)
-    out[mask] = ranked
-    return out
- 
- 
-# =============================================================================
-# CONTRASTE ENTRE GRUPOS
-# =============================================================================
- 
-def analizar_grupos(df, col, direccion, ventana_label):
+
+def analizar_grupos(df, col, ventana_label):
     """
-    T-test de Welch por canal x condicion.
-    direccion = "control>alc"  => H1: control > alcoholico
-    direccion = "alc>control"  => H1: alcoholico > control (latencia)
+    Comparacion descriptiva control vs alcoholico por canal x condicion.
+    Reporta media +- SD de cada grupo y la diferencia (control - alcoholico).
     """
     filas = []
     for canal in CANALES_INTERES:
@@ -142,19 +108,10 @@ def analizar_grupos(df, col, direccion, ventana_label):
             alc  = sub[sub["grupo"] == "alcoholic"][col].dropna().values
             if len(ctrl) < 2 or len(alc) < 2:
                 continue
- 
+
             mc, sc = ctrl.mean(), ctrl.std(ddof=1)
             ma, sa = alc.mean(),  alc.std(ddof=1)
- 
-            if direccion == "control>alc":
-                t_w, p_w = stats.ttest_ind(ctrl, alc, equal_var=False,
-                                           alternative="greater")
-                d = cohens_d(ctrl, alc)
-            else:
-                t_w, p_w = stats.ttest_ind(alc, ctrl, equal_var=False,
-                                           alternative="greater")
-                d = cohens_d(alc, ctrl)
- 
+
             filas.append({
                 "ventana": ventana_label, "metrica": col,
                 "canal": canal, "condicion": cond,
@@ -163,108 +120,41 @@ def analizar_grupos(df, col, direccion, ventana_label):
                 "control_media": mc, "control_sd": sc,
                 "alcoholic_media": ma, "alcoholic_sd": sa,
                 "diferencia": mc - ma,
-                "cohens_d": d,
-                "t_welch": t_w, "p_welch": p_w,
             })
- 
-    tab = pd.DataFrame(filas)
-    if len(tab):
-        tab["p_fdr"]   = bh_fdr(tab["p_welch"].values)
-        tab["sig"]     = tab["p_welch"] < ALPHA
-        tab["sig_fdr"] = tab["p_fdr"]   < ALPHA
-    return tab
- 
- 
-# =============================================================================
-# LATERALIZACION
-# =============================================================================
- 
-def tabla_lateralizacion(df, col=COL_MEDIA_C240):
-    """
-    (a) Pareado R vs L (ttest_rel, H1: R > L).
-    (b) LI = R - L entre grupos (ttest_ind Welch, H1: LI_control > LI_alc).
-    """
-    filas = []
-    for (R, L) in PARES_HEMISFERICOS:
-        for cond in CONDICIONES:
-            sub = df[df["condicion"] == cond]
-            piv = (sub.pivot_table(index=["sujeto", "grupo"],
-                                   columns="canal", values=col)
-                      .reset_index())
-            if R not in piv.columns or L not in piv.columns:
-                continue
-            piv = piv.dropna(subset=[R, L])
-            if len(piv) < 2:
-                continue
- 
-            li = piv[R] - piv[L]
-            t_p, p_p = stats.ttest_rel(piv[R].values, piv[L].values,
-                                       alternative="greater")
-            fila = {
-                "par": f"{R}-{L}", "condicion": cond, "n": len(piv),
-                "media_R": piv[R].mean(), "media_L": piv[L].mean(),
-                "media_LI": li.mean(),
-                "t_RvsL": t_p, "p_RvsL": p_p,
-            }
- 
-            li_c = li[piv["grupo"] == "control"].values
-            li_a = li[piv["grupo"] == "alcoholic"].values
-            if len(li_c) >= 2 and len(li_a) >= 2:
-                t_g, p_g = stats.ttest_ind(li_c, li_a, equal_var=False,
-                                           alternative="greater")
-                fila.update({
-                    "n_ctrl": len(li_c), "n_alc": len(li_a),
-                    "LI_ctrl": li_c.mean(), "LI_alc": li_a.mean(),
-                    "dif_LI": li_c.mean() - li_a.mean(),
-                    "d_LI": cohens_d(li_c, li_a),
-                    "t_LI": t_g, "p_LI": p_g,
-                })
-            filas.append(fila)
- 
-    tab = pd.DataFrame(filas)
-    if len(tab):
-        tab["p_RvsL_fdr"] = bh_fdr(tab["p_RvsL"].values)
-        if "p_LI" in tab.columns:
-            tab["p_LI_fdr"] = bh_fdr(tab["p_LI"].values)
-    return tab
- 
- 
+
+    return pd.DataFrame(filas)
+
+
 # =============================================================================
 # IMPRESION EN CONSOLA
 # =============================================================================
- 
+
 def imprimir_grupos(tab, titulo, h1):
     print(f"\n{'='*88}")
     print(f"{titulo}")
-    print(f"H1: {h1}  [una cola, Welch]")
-    print(f"'*' = p<0.05 crudo | '+' = p<0.05 tras FDR")
+    print(f"H1: {h1}")
     print(f"{'='*88}")
-    print(f"  {'Canal':<6}{'Cond.':<12}{'Control':>14}{'Alcoholico':>14}"
-          f"{'Dif.':>9}{'d':>7}{'t':>8}{'p':>11}{'p(FDR)':>11}")
-    print("  " + "-" * 85)
+    print(f"  {'Canal':<6}{'Cond.':<12}{'Control':>16}{'Alcoholico':>16}"
+          f"{'Dif.':>10}")
+    print("  " + "-" * 60)
     for _, r in tab.iterrows():
-        marca = "+" if r.get("sig_fdr", False) else (
-                "*" if r.get("sig", False) else " ")
         print(f"  {r['canal']:<6}{r['condicion']:<12}"
-              f"{r['control_media']:>+7.2f} +- {r['control_sd']:>4.2f}"
-              f"{r['alcoholic_media']:>+7.2f} +- {r['alcoholic_sd']:>4.2f}"
-              f"{r['diferencia']:>+9.2f}{r['cohens_d']:>7.2f}"
-              f"{r['t_welch']:>8.2f}{r['p_welch']:>11.2e}"
-              f"{r['p_fdr']:>11.2e} {marca}")
- 
- 
+              f"{r['control_media']:>+8.2f} +- {r['control_sd']:>4.2f}"
+              f"{r['alcoholic_media']:>+8.2f} +- {r['alcoholic_sd']:>4.2f}"
+              f"{r['diferencia']:>+10.2f}")
+
+
 def resumen_bloque(tab, label):
     n = len(tab)
     if n == 0:
         return
     print(f"\n  RESUMEN {label}:")
-    print(f"    Celdas: {n} | sig crudo: {tab['sig'].sum()}/{n}"
-          f" | sig FDR: {tab['sig_fdr'].sum()}/{n}")
+    print(f"    Celdas: {n}")
     for hemi in ["derecho", "izquierdo"]:
         sub = tab[tab["hemisferio"] == hemi]
         if len(sub):
-            print(f"    Hemisferio {hemi}: d promedio = "
-                  f"{sub['cohens_d'].mean():.2f}")
+            print(f"    Hemisferio {hemi}: diferencia promedio = "
+                  f"{sub['diferencia'].mean():+.2f}")
  
  
 # =============================================================================
@@ -389,18 +279,18 @@ def metricas_simples(df, col=COL_MEDIA_C240):
  
 def graficar_barras(tab, df, col, ventana_label,
                     canales, hemi_label, out_file):
-    """Barras de amplitud media por grupo con SEM y marca de significancia FDR."""
+    """Barras de amplitud media por grupo con SEM."""
     colores = {"control": "#2563eb", "alcoholic": "#dc2626"}
     fig, axes = plt.subplots(1, len(CONDICIONES),
                              figsize=(7 * len(CONDICIONES), 5.5))
     if len(CONDICIONES) == 1:
         axes = [axes]
     fig.suptitle(
-        f"Diferencia Control - Alcoholico por hemisferio — ventana {ventana_label}\n"
-        "Azul oscuro = derecho  |  Azul claro = izquierdo  |  "
-        "asim = dif. derecho - dif. izquierdo",
+        f"Amplitud media por grupo y canal — {hemi_label} — ventana {ventana_label}\n"
+        "Azul = Control  |  Rojo = Alcoholico  (barras: media ± SEM)",
         fontsize=12
     )
+    
     x = np.arange(len(canales))
     ancho = 0.38
  
@@ -421,20 +311,6 @@ def graficar_barras(tab, df, col, ventana_label,
         ax.bar(x + ancho/2, medias_a, ancho, yerr=sem_a, capsize=4,
                label="Alcoholico", color=colores["alcoholic"], alpha=0.8)
  
-        for xi, canal in enumerate(canales):
-            r = tab[(tab["canal"] == canal) & (tab["condicion"] == cond)]
-            if not r.empty and bool(r["sig_fdr"].values[0]):
-                ytop = max(medias_c[xi] + sem_c[xi],
-                           medias_a[xi] + sem_a[xi])
-                ax.text(xi, ytop + 0.3, "+", ha="center",
-                        fontsize=16, fontweight="bold")
-            if not r.empty:
-                d_val = r["cohens_d"].values[0]
-                ybot  = min(medias_c[xi] - sem_c[xi],
-                            medias_a[xi] - sem_a[xi]) - 0.6
-                ax.text(xi, ybot, f"d={d_val:.2f}", ha="center",
-                        fontsize=7, color="gray")
- 
         ax.axhline(0, color="black", linewidth=0.5)
         ax.set_xticks(x)
         ax.set_xticklabels(canales)
@@ -444,96 +320,11 @@ def graficar_barras(tab, df, col, ventana_label,
         ax.grid(True, axis="y", alpha=0.3)
  
     plt.tight_layout()
-    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
+    plt.savefig(f"outputs/{out_file}", dpi=150, bbox_inches="tight")
     plt.show()
     print(f"  Figura guardada: '{out_file}'")
- 
- 
-def graficar_lateralizacion(df, col=COL_MEDIA_C240,
-                             out_file="figura_lateralizacion.png"):
-    """
-    Grafico de asimetria hemisferica basado en metricas descriptivas simples.
-    Muestra la diferencia control-alcoholico en cada canal (D e I) por par.
-    Si la barra derecha > izquierda -> replica Zhang (dominancia derecha).
-    """
-    colores = {"derecho": "#1d4ed8", "izquierdo": "#93c5fd"}
- 
-    fig, axes = plt.subplots(1, len(CONDICIONES),
-                             figsize=(7 * len(CONDICIONES), 5.5))
-    if len(CONDICIONES) == 1:
-        axes = [axes]
- 
-    ventana = "c240 (220-260 ms)" if col == COL_MEDIA_C240 \
-              else "c320 (290-340 ms)"
-    fig.suptitle(
-        f"Diferencia Control - Alcoholico por hemisferio — ventana {ventana}\n"
-        "Azul oscuro = hemisferio derecho  |  Azul claro = hemisferio izquierdo\n"
-        "Asimetria > 0 -> replica Zhang (dominancia derecha)  |  ~0 -> bilateral",
-        fontsize=12
-    )
- 
-    pares_labels = [f"{R}\nvs\n{L}" for R, L in PARES_HEMISFERICOS]
-    x     = np.arange(len(PARES_HEMISFERICOS))
-    ancho = 0.35
- 
-    for ax, cond in zip(axes, CONDICIONES):
-        difs_D, difs_I, asimetrias = [], [], []
-        sems_D, sems_I = [], []
- 
-        for (R, L) in PARES_HEMISFERICOS:
-            sub    = df[df["condicion"] == cond]
-            ctrl_R = sub[(sub["canal"] == R) &
-                         (sub["grupo"] == "control")][col].dropna().values
-            alc_R  = sub[(sub["canal"] == R) &
-                         (sub["grupo"] == "alcoholic")][col].dropna().values
-            ctrl_L = sub[(sub["canal"] == L) &
-                         (sub["grupo"] == "control")][col].dropna().values
-            alc_L  = sub[(sub["canal"] == L) &
-                         (sub["grupo"] == "alcoholic")][col].dropna().values
- 
-            dif_D = ctrl_R.mean() - alc_R.mean()
-            dif_I = ctrl_L.mean() - alc_L.mean()
-            asim  = dif_D - dif_I
- 
-            sem_D = np.sqrt(ctrl_R.std(ddof=1)**2 / len(ctrl_R) +
-                            alc_R.std(ddof=1)**2  / len(alc_R))
-            sem_I = np.sqrt(ctrl_L.std(ddof=1)**2 / len(ctrl_L) +
-                            alc_L.std(ddof=1)**2  / len(alc_L))
- 
-            difs_D.append(dif_D)
-            difs_I.append(dif_I)
-            asimetrias.append(asim)
-            sems_D.append(sem_D)
-            sems_I.append(sem_I)
- 
-        ax.bar(x - ancho/2, difs_D, ancho, yerr=sems_D, capsize=4,
-               label="Hemisferio derecho",
-               color=colores["derecho"], alpha=0.85)
-        ax.bar(x + ancho/2, difs_I, ancho, yerr=sems_I, capsize=4,
-               label="Hemisferio izquierdo",
-               color=colores["izquierdo"], alpha=0.85)
- 
-        for xi, (asim, dD, dI, sD, sI) in enumerate(
-                zip(asimetrias, difs_D, difs_I, sems_D, sems_I)):
-            ytop = max(dD + sD, dI + sI) + 0.15
-            ax.text(xi, ytop, f"asim: {asim:+.1f} uV",
-                    ha="center", va="bottom",
-                    fontsize=10, color="black")
- 
-        ax.axhline(0, color="black", linewidth=0.6)
-        ax.set_xticks(x)
-        ax.set_xticklabels(pares_labels, fontsize=9)
-        ax.set_title(f"Condicion: {cond}", fontsize=11)
-        ax.set_ylabel("Diferencia ctrl - alc en amplitud VMP (uV)")
-        ax.legend(fontsize=10)
-        ax.grid(True, axis="y", alpha=0.3)
- 
-    plt.tight_layout()
-    plt.savefig(f"../outputs/{out_file}", dpi=150, bbox_inches="tight")
-    plt.show()
-    print(f"  Figura guardada: '{out_file}'")
- 
- 
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -567,8 +358,7 @@ if __name__ == "__main__":
     print("\n\n" + "#" * 88)
     print("  BLOQUE 1a: AMPLITUD MEDIA — c240 (220-260 ms) — VENTANA PRIMARIA")
     print("#" * 88)
-    tab_amp_c240 = analizar_grupos(df, COL_MEDIA_C240, "control>alc",
-                                   "c240 (220-260 ms)")
+    tab_amp_c240 = analizar_grupos(df, COL_MEDIA_C240, "c240 (220-260 ms)")
     imprimir_grupos(tab_amp_c240,
                     "AMPLITUD MEDIA c240 (220-260 ms) — control vs alcoholico",
                     "media_control > media_alcoholico")
@@ -580,8 +370,7 @@ if __name__ == "__main__":
     print("\n\n" + "#" * 88)
     print("  BLOQUE 1b: AMPLITUD MEDIA — c320 (290-340 ms) — VENTANA SECUNDARIA")
     print("#" * 88)
-    tab_amp_c320 = analizar_grupos(df, COL_MEDIA_C320, "control>alc",
-                                   "c320 (290-340 ms)")
+    tab_amp_c320 = analizar_grupos(df, COL_MEDIA_C320, "c320 (290-340 ms)")
     imprimir_grupos(tab_amp_c320,
                     "AMPLITUD MEDIA c320 (290-340 ms) — positividad tardia",
                     "media_control > media_alcoholico")
@@ -593,8 +382,7 @@ if __name__ == "__main__":
     print("\n\n" + "#" * 88)
     print("  BLOQUE 2: AUC (area bajo la curva) — c240")
     print("#" * 88)
-    tab_auc_c240 = analizar_grupos(df, COL_AUC_C240, "control>alc",
-                                   "AUC c240 (220-260 ms)")
+    tab_auc_c240 = analizar_grupos(df, COL_AUC_C240, "AUC c240 (220-260 ms)")
     imprimir_grupos(tab_auc_c240,
                     "AUC c240 (220-260 ms)",
                     "AUC_control > AUC_alcoholico")
@@ -610,27 +398,18 @@ if __name__ == "__main__":
     print("  BLOQUE 3: LATENCIA")
     print("  NOTA: metrica poco informativa en alcoholicos (sin pico positivo)")
     print("#" * 88)
-    tab_lat_c240 = analizar_grupos(df, COL_LAT_C240, "alc>control",
-                                   "latencia c240")
+    tab_lat_c240 = analizar_grupos(df, COL_LAT_C240, "latencia c240")
     imprimir_grupos(tab_lat_c240,
                     "LATENCIA c240 (220-260 ms)",
                     "latencia_alcoholico > latencia_control")
     resumen_bloque(tab_lat_c240, "latencia c240")
  
     print("\n" + "-" * 88)
-    tab_lat_c320 = analizar_grupos(df, COL_LAT_C320, "alc>control",
-                                   "latencia c320")
+    tab_lat_c320 = analizar_grupos(df, COL_LAT_C320, "latencia c320")
     imprimir_grupos(tab_lat_c320,
                     "LATENCIA c320 (290-340 ms) — ventana donde cae el pico real",
                     "latencia_alcoholico > latencia_control")
     resumen_bloque(tab_lat_c320, "latencia c320")
- 
-    # =========================================================================
-    # BLOQUE 4: LATERALIZACION
-    # Se calcula y se guarda en tabla_lateralizacion.csv (+ figuras mas abajo).
-    # No se imprime en consola: era redundante con el CSV.
-    # =========================================================================
-    tab_lateral = tabla_lateralizacion(df, COL_MEDIA_C240)
  
     # =========================================================================
     # BLOQUE 5: ANALISIS SECUNDARIO — inhomogeneo (robustez)
@@ -639,17 +418,16 @@ if __name__ == "__main__":
     print("  BLOQUE 5: ANALISIS SECUNDARIO — inhomogeneo (robustez)")
     print("#" * 88)
     df_inh  = df_full[df_full["metodo"] == METODO_SECUNDARIO].copy()
-    tab_inh = analizar_grupos(df_inh, COL_MEDIA_C240, "control>alc",
-                              "c240 inh.")
+    tab_inh = analizar_grupos(df_inh, COL_MEDIA_C240, "c240 inh.")
     imprimir_grupos(tab_inh,
                     f"AMPLITUD MEDIA c240 — metodo {METODO_SECUNDARIO.upper()}",
                     "media_control > media_alcoholico")
     resumen_bloque(tab_inh, "amplitud c240 inhomogeneo")
  
-    sig_hom = tab_amp_c240["sig_fdr"].sum()
-    sig_inh = tab_inh["sig_fdr"].sum() if len(tab_inh) else 0
-    print(f"\n  Robustez: homogeneo {sig_hom}/16 sig FDR, "
-          f"inhomogeneo {sig_inh}/16 sig FDR")
+    dif_hom = tab_amp_c240["diferencia"].mean()
+    dif_inh = tab_inh["diferencia"].mean() if len(tab_inh) else float("nan")
+    print(f"\n  Robustez: diferencia media (ctrl-alc) homogeneo {dif_hom:+.2f} uV, "
+          f"inhomogeneo {dif_inh:+.2f} uV")
  
     # =========================================================================
     # BLOQUE 6: METRICAS DESCRIPTIVAS SIMPLES
@@ -669,9 +447,7 @@ if __name__ == "__main__":
         ignore_index=True
     )
     all_tabs.to_csv(SALIDA_CSV, index=False)
-    tab_lateral.to_csv(SALIDA_LATERAL, index=False)
     print(f"\nTabla de contrastes  -> '{SALIDA_CSV}'")
-    print(f"Tabla lateralizacion -> '{SALIDA_LATERAL}'")
  
     # =========================================================================
     # FIGURAS
@@ -690,10 +466,5 @@ if __name__ == "__main__":
                         "Amplitud media c320 (290-340 ms)",
                         canales, label,
                         f"figura_barras_{sufijo}_c320.png")
- 
-    graficar_lateralizacion(df, col=COL_MEDIA_C240,
-                            out_file="figura_lateralizacion_c240.png")
-    graficar_lateralizacion(df, col=COL_MEDIA_C320,
-                            out_file="figura_lateralizacion_c320.png")
- 
+
     print("\n[OK] Script 06 finalizado.")
