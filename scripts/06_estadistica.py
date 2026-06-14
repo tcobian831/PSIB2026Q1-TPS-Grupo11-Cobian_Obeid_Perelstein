@@ -41,6 +41,8 @@ Salida:   outputs/tabla_estadistica.csv
           outputs/figura_barras_izquierdo_c240.png
           outputs/figura_barras_derecho_c320.png
           outputs/figura_barras_izquierdo_c320.png
+          outputs/figura_lateralizacion_c240.png
+          outputs/figura_lateralizacion_c320.png
  
 Uso:
     Correr desde la carpeta scripts/
@@ -325,6 +327,88 @@ def graficar_barras(tab, df, col, ventana_label,
     print(f"  Figura guardada: '{out_file}'")
 
 
+def graficar_lateralizacion(df, col, ventana_label, out_file):
+    """
+    Barras de la diferencia (control - alcoholico) por par hemisferico (H2).
+    Azul oscuro = hemisferio derecho (dif. en canal derecho).
+    Azul claro  = hemisferio izquierdo (dif. en canal homologo izquierdo).
+    Sobre cada par se anota la asimetria = dif_D - dif_I.
+    Barras de error: SEM de la diferencia = sqrt(SEM_ctrl^2 + SEM_alc^2).
+    """
+    color_der = "#2563eb"   # azul oscuro (hemisferio derecho)
+    color_izq = "#93c5fd"   # azul claro  (hemisferio izquierdo)
+
+    fig, axes = plt.subplots(1, len(CONDICIONES),
+                             figsize=(7 * len(CONDICIONES), 5.5))
+    if len(CONDICIONES) == 1:
+        axes = [axes]
+    fig.suptitle(
+        f"Diferencia Control - Alcoholico por hemisferio — ventana {ventana_label}\n"
+        "Azul oscuro = hemisferio derecho  |  Azul claro = hemisferio izquierdo\n"
+        "Asimetria > 0 -> replica Zhang (dominancia derecha)  |  ~0 -> bilateral",
+        fontsize=12
+    )
+
+    x = np.arange(len(PARES_HEMISFERICOS))
+    ancho = 0.38
+
+    for ax, cond in zip(axes, CONDICIONES):
+        dif_D_list, sem_D_list = [], []
+        dif_I_list, sem_I_list = [], []
+        asim_list, etiquetas_x = [], []
+
+        sub = df[df["condicion"] == cond]
+        for (R, L) in PARES_HEMISFERICOS:
+            ctrl_R = sub[(sub["canal"] == R) &
+                         (sub["grupo"] == "control")][col].dropna().values
+            alc_R  = sub[(sub["canal"] == R) &
+                         (sub["grupo"] == "alcoholic")][col].dropna().values
+            ctrl_L = sub[(sub["canal"] == L) &
+                         (sub["grupo"] == "control")][col].dropna().values
+            alc_L  = sub[(sub["canal"] == L) &
+                         (sub["grupo"] == "alcoholic")][col].dropna().values
+
+            dif_D = ctrl_R.mean() - alc_R.mean()
+            dif_I = ctrl_L.mean() - alc_L.mean()
+            sem_D = np.sqrt(ctrl_R.std(ddof=1)**2 / len(ctrl_R) +
+                            alc_R.std(ddof=1)**2 / len(alc_R))
+            sem_I = np.sqrt(ctrl_L.std(ddof=1)**2 / len(ctrl_L) +
+                            alc_L.std(ddof=1)**2 / len(alc_L))
+
+            dif_D_list.append(dif_D); sem_D_list.append(sem_D)
+            dif_I_list.append(dif_I); sem_I_list.append(sem_I)
+            asim_list.append(dif_D - dif_I)
+            etiquetas_x.append(f"{R}\nvs\n{L}")
+
+        ax.bar(x - ancho/2, dif_D_list, ancho, yerr=sem_D_list, capsize=4,
+               label="Hemisferio derecho", color=color_der, alpha=0.9)
+        ax.bar(x + ancho/2, dif_I_list, ancho, yerr=sem_I_list, capsize=4,
+               label="Hemisferio izquierdo", color=color_izq, alpha=0.9)
+
+        ax.axhline(0, color="black", linewidth=0.5)
+
+        # Anotacion de asimetria sobre cada par (arriba del tope del par).
+        rng = ax.get_ylim()[1] - ax.get_ylim()[0]
+        for xi in range(len(PARES_HEMISFERICOS)):
+            tope = max(dif_D_list[xi] + sem_D_list[xi],
+                       dif_I_list[xi] + sem_I_list[xi])
+            ax.text(xi, tope + 0.03 * rng, f"asim: {asim_list[xi]:+.1f} uV",
+                    ha="center", va="bottom", fontsize=9)
+        ax.set_ylim(top=ax.get_ylim()[1] + 0.10 * rng)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(etiquetas_x)
+        ax.set_title(f"Condicion: {cond}", fontsize=11)
+        ax.set_ylabel("Diferencia ctrl - alc en amplitud VMP (uV)")
+        ax.legend(fontsize=10)
+        ax.grid(True, axis="y", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(f"outputs/{out_file}", dpi=150, bbox_inches="tight")
+    plt.show()
+    print(f"  Figura guardada: '{out_file}'")
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -466,5 +550,11 @@ if __name__ == "__main__":
                         "Amplitud media c320 (290-340 ms)",
                         canales, label,
                         f"figura_barras_{sufijo}_c320.png")
+
+    # Figuras de lateralizacion (asimetria hemisferica) — H2
+    graficar_lateralizacion(df, COL_MEDIA_C240, "c240 (220-260 ms)",
+                            "figura_lateralizacion_c240.png")
+    graficar_lateralizacion(df, COL_MEDIA_C320, "c320 (290-340 ms)",
+                            "figura_lateralizacion_c320.png")
 
     print("\n[OK] Script 06 finalizado.")

@@ -1,4 +1,4 @@
-"""
+﻿"""
 ==============================================================================
 TPS - Procesamiento de Señales Biomédicas
 Potenciales Evocados Visuales en Sujetos con Alcoholismo
@@ -87,9 +87,23 @@ def graficar_señales_tiempo(df: pd.DataFrame):
                              figsize=(4 * N_TRIALS_EJEMPLO, 6),
                              sharex=True, sharey=True)
 
+    # Identificar el sujeto de ejemplo de cada grupo (P8, S1 obj) para el titulo.
+    # Misma logica (.iloc[0]) que el loop de abajo -> el codigo coincide con el
+    # sujeto realmente graficado en cada fila.
+    sujetos_ej = {}
+    for grupo in ["control", "alcoholic"]:
+        s = df[
+            (df["grupo"] == grupo) &
+            (df["canal"] == "P8") &
+            (df["condicion"] == "S1 obj")
+        ]
+        sujetos_ej[grupo] = s["sujeto"].iloc[0] if not s.empty else "—"
+
     fig.suptitle(
         "Señales EEG crudas — Canal P8 — Condición S1 obj\n"
-        f"({N_TRIALS_EJEMPLO} trials individuales por grupo)",
+        f"Sujetos de ejemplo: {sujetos_ej['control']} (control) — "
+        f"{sujetos_ej['alcoholic']} (alcoholic)  |  "
+        f"{N_TRIALS_EJEMPLO} trials individuales por grupo",
         fontsize=13
     )
 
