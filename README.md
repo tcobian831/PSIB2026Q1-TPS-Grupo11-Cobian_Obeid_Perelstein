@@ -1,6 +1,6 @@
 # PSIB2026Q1-TPS-Grupo11-Cobian_Obeid_Perelstein
 
-Este proyecto fue desarrollado durante la cursada de la materia "Procesamiento de Señales e Imágenes Biomédica" del Instituto Tecnológico de Buenos Aires, y en el mismo analiza potenciales evocados visuales en señales EEG del dataset UCI EEG Database (https://archive.ics.uci.edu/dataset/121/eeg+database), con foco en el componente c240/VMP asociado a memoria visual, comparando sujetos controles y sujetos con alcoholismo.
+Trabajo práctico de la materia **Procesamiento de Señales e Imágenes Biomédicas** (ITBA). Analiza potenciales evocados visuales en señales EEG del dataset **UCI EEG Database** (https://archive.ics.uci.edu/dataset/121/eeg+database), con foco en el componente **c240/VMP** asociado a memoria visual, comparando sujetos **controles** y sujetos con **alcoholismo**.
 
 El análisis se centra en dos condiciones del paradigma de reconocimiento visual:
 
@@ -9,24 +9,24 @@ S1 obj       estímulo sample / codificación visual inicial
 S2 nomatch   estímulo test / comparación con memoria visual
 ```
 
-La ventana principal del trabajo es el componente c240/VMP entre 220 y 260 ms. La ventana 290-340 ms, asociada al componente tardío c320 reportado por Zhang et al., se conserva como análisis secundario y exploratorio.
+La ventana principal es el componente **c240/VMP entre 220 y 260 ms**. La ventana **290–340 ms** (componente tardío c320 reportado por Zhang et al. 1997) se conserva como análisis secundario y exploratorio.
 
-## Estructura general
+---
 
-El pipeline está organizado en scripts numerados dentro de la carpeta `scripts/`.
-
-La carpeta `data/` no se versiona en GitHub. Debe estar disponible localmente para ejecutar el proyecto desde cero. Los resultados derivados se guardan en `outputs/` y la interfaz gráfica consume esos archivos ya procesados.
-
-Carpetas principales:
+## Estructura del repositorio
 
 ```text
-scripts/                    códigos del pipeline principal
-gui/                        interfaz gráfica de exploración del c240/VMP
-data/eeg_full/              dataset original UCI EEG, no versionado
-outputs/                    tablas, métricas y archivos procesados generados
+scripts/      códigos del pipeline principal (01 a 06)
+gui/          interfaz gráfica de exploración del c240/VMP (PySide6 + pyqtgraph)
+data/         dataset original UCI EEG (NO versionado; se agrega localmente)
+outputs/      tablas, métricas y figuras generadas por los scripts
 ```
 
-## Requisitos
+La carpeta `data/` no se sube a GitHub. Debe estar disponible localmente para correr el pipeline desde cero. La carpeta `outputs/` contiene los productos derivados; la GUI consume esos archivos ya procesados (no recalcula desde los trials crudos).
+
+---
+
+## Requisitos e instalación
 
 Crear y activar un entorno virtual:
 
@@ -35,13 +35,15 @@ python -m venv .venv
 .venv\Scripts\activate
 ```
 
+(En Linux/Mac: `source .venv/bin/activate`)
+
 Instalar dependencias:
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-Dependencias principales:
+Dependencias (de `requirements.txt`):
 
 ```text
 numpy
@@ -53,88 +55,80 @@ PySide6
 pyqtgraph
 ```
 
+---
+
 ## Datos de entrada
 
-El dataset original no se sube al repositorio. Para correr el proyecto desde cero, debe ubicarse localmente con la siguiente estructura:
+El dataset original no se incluye en el repositorio. Para correr el proyecto desde cero, ubicarlo localmente con esta estructura:
 
 ```text
 data/
   eeg_full/
-    co2a0000364.tar.gz
-    co2c0000337.tar.gz
+    co2a0000364.tar.gz    <- sujeto alcohólico (4ta letra 'a')
+    co2c0000337.tar.gz    <- sujeto control    (4ta letra 'c')
     ...
 ```
 
-La identificación del grupo se realiza a partir del nombre del archivo:
+El grupo de cada sujeto se identifica por la 4ta letra del nombre del archivo (`a` = alcohólico, `c` = control). Cada `.tar.gz` contiene los trials EEG individuales del sujeto. El registro es a **256 Hz, 256 muestras por trial** (1 segundo).
 
-```text
-co2a...   sujeto alcohólico
-co2c...   sujeto control
-```
+> Importante: los scripts anclan el directorio de trabajo a la raíz del proyecto automáticamente (`os.chdir(...)`), así que pueden ejecutarse desde cualquier carpeta. Las rutas de entrada/salida resuelven siempre contra `outputs/` en la raíz.
 
-Cada archivo comprimido contiene trials EEG individuales. El dataset se registra a 256 Hz, con 256 muestras por trial.
+---
 
-## Orden de ejecución
+## Orden de ejecución del pipeline
 
-### Módulo 01: carga y exploración inicial del dataset
+Correr los scripts en orden. Cada uno depende de la salida del anterior.
+
+### Módulo 01 — Carga del dataset
 
 ```powershell
 python scripts\01_carga_exploracion.py
 ```
 
-Este módulo carga los archivos `.tar.gz` del dataset, parsea los trials individuales y organiza la información en un único DataFrame con metadatos de sujeto, grupo, condición, canal, muestra y amplitud en microvoltios.
+Carga los `.tar.gz`, parsea los trials individuales y arma un único DataFrame con metadatos (sujeto, grupo, condición, canal, muestra, amplitud en µV). Identifica grupos, condiciones y canales disponibles.
 
-Salidas principales:
+Salidas:
 
 ```text
 outputs/eeg_data_cargado.parquet
+outputs/figura_trial_ejemplo.png
+outputs/figura_distribucion_trials.png
 ```
 
-El módulo también permite verificar la cantidad de sujetos, grupos, condiciones, canales disponibles y rango de amplitudes.
-
-### Módulo 02: exploración inicial en tiempo y frecuencia
+### Módulo 02 — Exploración en tiempo y frecuencia
 
 ```powershell
 python scripts\02_exploracion_inicial.py
 ```
 
-Este módulo analiza las señales crudas antes del filtrado. Incluye visualización temporal de trials individuales, análisis espectral mediante Welch y distribución de amplitudes para justificar el rechazo de artefactos.
+Analiza las señales **crudas** antes del filtrado: visualización temporal de trials individuales, espectro de potencia (PSD) por método de Welch y distribución de amplitudes, para justificar el filtro pasa-banda y el umbral de rechazo de artefactos.
 
-Análisis realizados:
-
-```text
-visualización de señales crudas
-PSD mediante Welch
-comparación entre grupos y canales
-histogramas de amplitud
-justificación del filtrado y del umbral de artefactos
-```
-
-Salidas principales:
+Salidas:
 
 ```text
 outputs/figura_exploracion_tiempo.png
-outputs/figura_exploracion_multicanal.png
-outputs/figura_exploracion_psd.png
-outputs/figura_exploracion_artefactos.png
+outputs/figura_exploracion_multicanal_derecho.png
+outputs/figura_exploracion_multicanal_izquierdo.png
+outputs/figura_exploracion_psd_derecho.png
+outputs/figura_exploracion_psd_izquierdo.png
+outputs/figura_exploracion_artefactos_derecho.png
+outputs/figura_exploracion_artefactos_izquierdo.png
 ```
 
-### Módulo 03: preprocesamiento de señales EEG
+### Módulo 03 — Preprocesamiento
 
 ```powershell
 python scripts\03_preprocesamiento.py
 ```
 
-Este módulo aplica el preprocesamiento principal sobre las condiciones y canales de interés.
-
-Pasos incluidos:
+Aplica el preprocesamiento sobre las condiciones y canales de interés:
 
 ```text
 selección de condiciones S1 obj y S2 nomatch
-selección de canales temporo-occipitales derechos e izquierdos
-filtro Butterworth pasa-banda 0.1-30 Hz
-filtrado bidireccional con filtfilt para fase cero
-corrección de offset local usando los primeros 50 ms de la época
+selección de canales temporo-occipitales (derechos + homólogos izquierdos)
+filtro Butterworth pasa-banda 0.1–30 Hz (orden 4)
+filtrado bidireccional (filtfilt) para fase cero
+corrección de offset local con los primeros 50 ms de la época
 rechazo de trials con artefactos por umbral ±100 µV
 ```
 
@@ -145,44 +139,32 @@ Hemisferio derecho:    P8, PO8, T8, TP8
 Hemisferio izquierdo:  P7, PO7, T7, TP7
 ```
 
-Nota metodológica: la corrección de los primeros 50 ms se interpreta como una corrección de offset local o pseudo-baseline, no como una línea de base pre-estímulo estricta, dado que las épocas utilizadas no contienen una ventana pre-estímulo confiable.
+Nota metodológica: la corrección de los primeros 50 ms es una corrección de offset local (pseudo-baseline), no una línea de base pre-estímulo estricta, dado que las épocas no contienen una ventana pre-estímulo confiable.
 
-Salidas principales:
+Salidas:
 
 ```text
 outputs/eeg_data_preprocesado.parquet
+outputs/figura_preprocesamiento_canales.png
+outputs/figura_preprocesamiento_artefacto.png
 ```
 
-### Módulo 04: promediado de trials
+### Módulo 04 — Promediado de trials
 
 ```powershell
 python scripts\04_promediado.py
 ```
 
-Este módulo calcula el potencial evocado individual por sujeto, canal y condición mediante dos estrategias de promediado.
-
-Métodos incluidos:
+Calcula el potencial evocado individual por sujeto, canal y condición con dos estrategias:
 
 ```text
-Promedio homogéneo:
-promedio aritmético clásico, todos los trials pesan igual.
-
-Promedio inhomogéneo:
-promedio ponderado considerando amplitud variable entre trials y varianza de ruido constante.
+Promedio homogéneo:   promedio aritmético clásico (todos los trials pesan igual). MÉTODO PRINCIPAL.
+Promedio inhomogéneo: promedio ponderado (amplitud variable, ruido constante). Análisis de robustez.
 ```
 
-El promedio homogéneo se utiliza como método principal del trabajo. El promedio inhomogéneo se conserva como análisis secundario y de robustez metodológica.
+Además, para el Grand Average iguala los grupos a una cohorte de referencia (**45 controles + 45 alcohólicos** seleccionados con SEED=42), de modo que ambos GA tengan el mismo N. También calcula una **SNR** por subensambles par/impar. El PE individual se guarda con la muestra completa (77 alc + 45 ctrl) para los scripts 05/06.
 
-Además, el módulo iguala grupos para una cohorte de referencia:
-
-```text
-45 controles
-45 alcohólicos seleccionados aleatoriamente con SEED fijo
-```
-
-Esto permite comparar Grand Averages con el mismo número de sujetos por grupo. También se calcula una SNR basada en subensambles par/impar.
-
-Salidas principales:
+Salidas:
 
 ```text
 outputs/eeg_PE_homogeneo.parquet
@@ -191,87 +173,78 @@ outputs/eeg_GA_homogeneo.parquet
 outputs/eeg_GA_inhomogeneo.parquet
 outputs/tabla_snr_comparacion.csv
 outputs/sujetos_seleccionados.csv
+outputs/figura_GA_derecho.png
+outputs/figura_GA_izquierdo.png
+outputs/figura_snr_derecho.png
+outputs/figura_snr_izquierdo.png
 ```
 
-### Módulo 05: extracción de métricas del c240 y c320
+### Módulo 05 — Extracción de métricas del c240 y c320
 
 ```powershell
 python scripts\05_extraccion_pico.py
 ```
 
-Este módulo extrae métricas por sujeto, canal, condición y método de promediado.
-
-Ventana principal:
+Extrae métricas por sujeto, canal, condición y método de promediado en dos ventanas:
 
 ```text
-c240 / VMP: 220-260 ms
+Ventana primaria   c240 / VMP: 220–260 ms
+Ventana secundaria c320:        290–340 ms
 ```
 
-Ventana secundaria:
+Métricas calculadas en cada ventana:
 
 ```text
-c320: 290-340 ms
+media en ventana       (métrica principal del análisis)
+máximo positivo        (secundaria)
+latencia del máximo    (secundaria)
+área bajo la curva con signo (secundaria)
 ```
 
-Métricas calculadas:
+La métrica principal es la **media firmada en la ventana c240**. El máximo, la latencia, el AUC y la ventana c320 se reportan como secundarios.
 
-```text
-media en ventana
-máximo positivo en ventana
-latencia del máximo
-área bajo la curva con signo
-```
-
-La métrica principal del análisis es la media firmada en la ventana c240. El máximo, la latencia, el AUC y la ventana c320 se reportan como métricas secundarias.
-
-Salidas principales:
+Salidas:
 
 ```text
 outputs/eeg_c240_extraido.csv
-outputs/figura_boxplot_derecho_c240.png
-outputs/figura_boxplot_izquierdo_c240.png
-outputs/figura_boxplot_derecho_c320.png
-outputs/figura_boxplot_izquierdo_c320.png
-outputs/figura_latencia_derecho.png
-outputs/figura_latencia_izquierdo.png
+outputs/figura_boxplot_derecho_c240_hom.png
+outputs/figura_boxplot_izquierdo_c240_hom.png
+outputs/figura_boxplot_derecho_c320_hom.png
+outputs/figura_boxplot_izquierdo_c320_hom.png
+outputs/figura_latencia_derecho_c240.png
+outputs/figura_latencia_izquierdo_c240.png
+outputs/figura_latencia_derecho_c320.png
+outputs/figura_latencia_izquierdo_c320.png
 ```
 
-### Módulo 06: análisis estadístico
+### Módulo 06 — Análisis estadístico
 
 ```powershell
 python scripts\06_estadistica.py
 ```
 
-Este módulo realiza el contraste estadístico entre controles y alcohólicos para las métricas extraídas.
-
-Análisis principal:
+Contrasta controles vs alcohólicos para las métricas extraídas. El análisis es **descriptivo**: reporta media ± SD por grupo y la diferencia (control − alcohólico) por canal y condición, e incluye métricas descriptivas simples para las dos hipótesis:
 
 ```text
-método: homogéneo
-ventana: c240, 220-260 ms
-métrica: media en ventana
-hipótesis: Control > Alcohólico
-test: t-test de Welch una cola
-corrección por múltiples comparaciones: FDR Benjamini-Hochberg
+H1: Control > Alcohólico en amplitud del VMP (región temporo-occipital).
+H2: El efecto es más pronunciado en el hemisferio derecho (asimetría D − I).
 ```
 
-El test de Welch se utiliza porque compara dos grupos independientes sin asumir igualdad de varianzas. La hipótesis una cola se justifica porque la dirección esperada Control > Alcohólico fue definida a priori a partir del marco teórico.
-
-Análisis secundarios:
+Bloques que imprime en consola:
 
 ```text
-c320 290-340 ms
-AUC c240
-latencia c240 y c320
-lateralización hemisférica
-promedio inhomogéneo como robustez
+1a. Amplitud media c240 (ventana primaria)
+1b. Amplitud media c320 (ventana secundaria)
+2.  AUC c240
+3.  Latencia c240 y c320 (poco informativa; ver nota en el código)
+5.  Análisis secundario: promedio inhomogéneo (robustez)
+6.  Métricas descriptivas simples (H1 y H2, con asimetría hemisférica)
 ```
 
-Salidas principales:
+Salidas:
 
 ```text
 outputs/tabla_estadistica.csv
-outputs/tabla_lateralizacion.csv
 outputs/figura_barras_derecho_c240.png
 outputs/figura_barras_izquierdo_c240.png
 outputs/figura_barras_derecho_c320.png
@@ -280,92 +253,9 @@ outputs/figura_lateralizacion_c240.png
 outputs/figura_lateralizacion_c320.png
 ```
 
-## Interfaz gráfica
+---
 
-La carpeta `gui/` contiene una aplicación de escritorio desarrollada con PySide6 y pyqtgraph para explorar los potenciales evocados ya procesados.
-
-Ejecutar desde la raíz del proyecto:
-
-```powershell
-python -m gui.app
-```
-
-También puede ejecutarse como:
-
-```powershell
-python gui\app.py
-```
-
-La GUI no recalcula desde los trials crudos. Consume los archivos generados por los módulos 04, 05 y 06.
-
-Archivos requeridos:
-
-```text
-outputs/eeg_PE_homogeneo.parquet
-outputs/eeg_PE_inhomogeneo.parquet
-outputs/eeg_c240_extraido.csv
-outputs/tabla_snr_comparacion.csv
-outputs/tabla_estadistica.csv
-```
-
-Controles disponibles:
-
-```text
-selección de canal
-selección de condición
-método de promediado homogéneo o inhomogéneo
-superposición de métodos
-slider de balanceo de grupos
-semilla aleatoria para selección de alcohólicos
-```
-
-La interfaz muestra:
-
-```text
-Grand Average control vs alcohólico
-banda de error estándar entre sujetos
-ventanas c240 y c320 sombreadas
-pico visual del promedio en ventana amplia 150-400 ms
-media c240 por grupo
-diferencia Control - Alcohólico
-SNR homogénea e inhomogénea
-referencia estadística de la muestra completa
-métricas secundarias
-```
-
-Nota: el pico visual mostrado en la GUI se calcula en una ventana amplia de 150 a 400 ms y se usa solo para describir la morfología de la curva. La métrica oficial del c240 sigue siendo la media en la ventana fija 220-260 ms.
-
-## Interpretación de las ventanas
-
-El análisis principal se apoya en la ventana c240/VMP:
-
-```text
-c240 / VMP: 220-260 ms
-```
-
-Esta ventana se utiliza para cuantificar la respuesta asociada a memoria visual en regiones temporo-occipitales.
-
-La ventana c320 se mantiene como secundaria:
-
-```text
-c320: 290-340 ms
-```
-
-Esta ventana se interpreta de forma exploratoria, ya que su morfología puede diferir entre estímulos sample y test. En S1 puede observarse como una positividad tardía de codificación visual, mientras que en S2 nomatch puede no comportarse como una positividad directamente comparable.
-
-Interpretación por condición:
-
-```text
-S1 obj:
-representa el estímulo sample. Se interpreta principalmente como codificación visual inicial.
-
-S2 nomatch:
-representa el estímulo test no coincidente. Es la condición más directamente asociada a comparación con memoria visual y al análisis del VMP.
-```
-
-## Pipeline completo
-
-Para reproducir el análisis completo desde cero, ejecutar:
+## Pipeline completo (resumen)
 
 ```powershell
 python scripts\01_carga_exploracion.py
@@ -377,51 +267,131 @@ python scripts\06_estadistica.py
 python -m gui.app
 ```
 
-La GUI requiere que los módulos 04, 05 y 06 hayan sido ejecutados previamente. El módulo 04 puede incluir una selección aleatoria reproducible de sujetos alcohólicos mediante la semilla configurada.
+La GUI requiere que los módulos 04, 05 y 06 hayan corrido previamente.
+
+---
+
+## Interfaz gráfica (GUI)
+
+La carpeta `gui/` contiene una aplicación de escritorio (PySide6 + pyqtgraph) para explorar interactivamente los potenciales evocados ya procesados. **No recalcula desde los trials crudos**: consume los archivos de `outputs/` generados por los módulos 04, 05 y 06.
+
+### Cómo ejecutarla
+
+Desde la raíz del proyecto:
+
+```powershell
+python -m gui.app
+```
+
+o bien:
+
+```powershell
+python gui\app.py
+```
+
+Si falta algún archivo requerido, la app muestra un cuadro de error indicando cuál falta y qué script lo regenera.
+
+Archivos que la GUI necesita en `outputs/`:
+
+```text
+eeg_PE_homogeneo.parquet
+eeg_PE_inhomogeneo.parquet
+eeg_c240_extraido.csv
+tabla_snr_comparacion.csv
+tabla_estadistica.csv
+```
+
+### Controles (panel lateral izquierdo)
+
+```text
+Canal:        los 8 canales (4 derechos + 4 homólogos izquierdos).
+Condición:    S1 obj o S2 nomatch.
+Método:       homogéneo (línea sólida) o inhomogéneo (punteada).
+Superponer:   casilla para dibujar ambos métodos a la vez.
+Slider 45–77: re-balancea la cohorte de alcohólicos y recalcula el Grand Average
+              desde los PE individuales (NO re-promedia trials crudos). Controles
+              fijos en 45. En 45 reproduce el GA igualado del Script 04; en 77 usa
+              la muestra completa.
+Semilla:      semilla de la selección aleatoria de alcohólicos (default 42).
+```
+
+### Qué muestra
+
+```text
+Grand Average control (azul) vs alcohólico (rojo).
+Banda de error estándar (SEM) entre sujetos.
+Ventanas c240 (220–260 ms) y c320 (290–340 ms) sombreadas.
+Hover con crosshair: tiempo (ms) y valor µV de cada grupo + diferencia (C−A).
+Marcador del pico del promedio (ventana amplia 200–400 ms, solo visual).
+```
+
+### Panel de KPIs
+
+```text
+Media c240 por grupo (± SD) y diferencia Control − Alcohólico, recalculadas en
+vivo sobre la cohorte del slider.
+SNR homogénea / inhomogénea (de tabla_snr_comparacion.csv).
+Referencia de la muestra completa (todos los sujetos) tomada de tabla_estadistica.csv.
+Secundarios: máximo, latencia y AUC en c240, y media c320 (claramente etiquetados).
+```
+
+> Nota: el pico mostrado en la GUI se calcula en la ventana amplia 200–400 ms y sirve solo para describir la morfología de la curva (dónde pica el componente, que se desplaza entre c240 y la positividad tardía). La métrica oficial del c240 sigue siendo la **media en la ventana fija 220–260 ms**.
+
+### Módulos de la GUI
+
+```text
+gui/
+  config.py       constantes (canales, ventanas, SEED, paleta, rutas)
+  data_loader.py  carga y validación de outputs/ (error claro si falta algo)
+  averaging.py    igualar grupos + Grand Average (réplica del Script 04)
+  stats.py        media ± SD por grupo + diferencia + SNR (réplica de los Scripts 05/06)
+  plotting.py     widget pyqtgraph (hover µV/ms, banda SEM, sombreados, marcador de pico)
+  widgets.py      sidebar de controles + tarjetas de KPI
+  app.py          ventana principal, tema oscuro, cableado de señales
+```
+
+> Solución de problemas (Windows): si aparece `ImportError: DLL load failed while importing QtGui/QtCore`, ocurre cuando conviven PyQt6 y PySide6 en el entorno. La app ya lo evita fijando `PYQTGRAPH_QT_LIB=PySide6` antes de importar pyqtgraph. Si lo ves al integrar este código en otro lado, exportá esa variable o importá PySide6 antes que pyqtgraph.
+
+---
+
+## Interpretación de las ventanas
+
+```text
+c240 / VMP: 220–260 ms   ventana principal. Respuesta asociada a memoria visual
+                         en regiones temporo-occipitales.
+c320:        290–340 ms   ventana secundaria / exploratoria. Su morfología puede
+                         diferir entre estímulos sample (S1) y test (S2 nomatch).
+```
+
+Interpretación por condición:
+
+```text
+S1 obj:      estímulo sample. Codificación visual inicial.
+S2 nomatch:  estímulo test no coincidente. Condición más directamente asociada a
+             comparación con memoria visual y al análisis del VMP.
+```
+
+---
 
 ## Archivos principales de outputs
 
 ```text
-eeg_data_cargado.parquet:
-dataset parseado y organizado desde los archivos originales.
-
-eeg_data_preprocesado.parquet:
-trials filtrados, corregidos y limpios.
-
-eeg_PE_homogeneo.parquet:
-potenciales evocados individuales con promediado homogéneo.
-
-eeg_PE_inhomogeneo.parquet:
-potenciales evocados individuales con promediado inhomogéneo.
-
-eeg_GA_homogeneo.parquet:
-Grand Average homogéneo por grupo, canal y condición.
-
-eeg_GA_inhomogeneo.parquet:
-Grand Average inhomogéneo por grupo, canal y condición.
-
-eeg_c240_extraido.csv:
-métricas c240 y c320 por sujeto, canal, condición y método.
-
-tabla_snr_comparacion.csv:
-comparación de SNR entre promediado homogéneo e inhomogéneo.
-
-tabla_estadistica.csv:
-tests Welch, tamaño de efecto y corrección FDR.
-
-tabla_lateralizacion.csv:
-análisis de lateralización entre hemisferio derecho e izquierdo.
+eeg_data_cargado.parquet       dataset parseado y organizado desde los .tar.gz.
+eeg_data_preprocesado.parquet  trials filtrados, corregidos y limpios.
+eeg_PE_homogeneo.parquet       PE individuales (promediado homogéneo).
+eeg_PE_inhomogeneo.parquet     PE individuales (promediado inhomogéneo).
+eeg_GA_homogeneo.parquet       Grand Average homogéneo por grupo/canal/condición.
+eeg_GA_inhomogeneo.parquet     Grand Average inhomogéneo por grupo/canal/condición.
+eeg_c240_extraido.csv          métricas c240 y c320 por sujeto/canal/condición/método.
+tabla_snr_comparacion.csv      SNR homogénea vs inhomogénea (cohorte 45+45).
+tabla_estadistica.csv          comparación descriptiva entre grupos (media, SD, diferencia).
+sujetos_seleccionados.csv      registro de los 45 alcohólicos elegidos para el GA.
 ```
 
+---
 
-## Nota sobre los datos
+---
 
-El dataset original no se sube al repositorio. La carpeta `data/` debe agregarse localmente con la estructura esperada por los scripts. Los resultados generados por el pipeline se guardan en `outputs/`.
+## Grupo 11
 
-## Limitaciones metodológicas
-
-Este trabajo utiliza una corrección de offset local con los primeros 50 ms de cada época, ya que no se dispone de una ventana pre-estímulo confiable. Por este motivo, la interpretación se centra en diferencias relativas entre grupos y en ventanas temporales definidas a priori.
-
-El componente c320 se reporta como secundario y exploratorio. La conclusión principal del trabajo se basa en la media del c240/VMP entre 220 y 260 ms.
-
-El promedio inhomogéneo se utiliza como comparación metodológica, no como resultado principal, debido a que sus pesos dependen del parecido de cada trial con el promedio estimado.
+Cobián · Obeid · Perelstein — ITBA, PSIB 2026 Q1.
