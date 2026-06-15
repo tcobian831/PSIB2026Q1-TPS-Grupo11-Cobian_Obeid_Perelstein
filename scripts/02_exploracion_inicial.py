@@ -19,13 +19,11 @@ Análisis realizados:
     4. Conclusiones que justifican el filtro pasa-banda elegido
 
 Entrada:  eeg_data_cargado.parquet  (generado por Script 01)
-Salida:   figura_exploracion_tiempo.png
-          figura_exploracion_psd.png
-          figura_exploracion_artefactos.png
+Salidas:  distintas figuras de exploración guardadas en outputs/
 
 Uso:
     Correr desde la carpeta scripts/
-    python 02_exploracion.py
+    python 02_exploracion_inicial.py
 ==============================================================================
 """
 
@@ -166,22 +164,29 @@ def graficar_señales_multicanal(df: pd.DataFrame,
     fig, axes = plt.subplots(2, len(canales),
                              figsize=(4 * len(canales), 6),
                              sharex=True)
+    
+    # Identificar sujeto y trial de ejemplo para cada grupo
+    ejemplos = {}
 
-    # Identificar el sujeto y trial de ejemplo para el título
-    ejemplo = df[
-        (df["grupo"] == "control") &
-        (df["canal"] == canales[0]) &
-        (df["condicion"] == "S1 obj")
-    ]
-    sujeto_ej = ejemplo["sujeto"].iloc[0]
-    trial_ej  = ejemplo[
-        ejemplo["sujeto"] == sujeto_ej
-    ]["trial_num"].iloc[0]
+    for grupo in ["control", "alcoholic"]:
+        ejemplo = df[
+            (df["grupo"] == grupo) &
+            (df["canal"] == canales[0]) &
+            (df["condicion"] == "S1 obj")
+        ]
+
+        if ejemplo.empty:
+            ejemplos[grupo] = ("—", "—")
+        else:
+            sujeto = ejemplo["sujeto"].iloc[0]
+            trial = ejemplo[ejemplo["sujeto"] == sujeto]["trial_num"].iloc[0]
+            ejemplos[grupo] = (sujeto, trial)
 
     fig.suptitle(
         f"Señal EEG cruda — {titulo_sufijo}\n"
-        f"Sujeto de ejemplo: {sujeto_ej} (control) — "
-        f"Trial: {trial_ej} — Condición: S1 obj",
+        f"Control: {ejemplos['control'][0]}, trial {ejemplos['control'][1]} — "
+        f"Alcoholic: {ejemplos['alcoholic'][0]}, trial {ejemplos['alcoholic'][1]} — "
+        f"Condición: S1 obj",
         fontsize=12
     )
 

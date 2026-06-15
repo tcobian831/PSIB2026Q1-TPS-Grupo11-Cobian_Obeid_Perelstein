@@ -62,7 +62,7 @@ FS = 256  # Hz
 # Número de muestras por trial (0–255 = 256 muestras = 1 segundo)
 N_SAMPLES = 256
 
-# Canales de interés (temporo-occipitales derechos, según Zhang et al. 1997)
+# Canales de interés (parieto-temporo-occipitales de ambos hemisferios, según Zhang et al. 1997)
 CANALES_INTERES = ["P8", "PO8", "T8", "TP8", "P7", "PO7", "T7", "TP7"]
 
 # Condiciones de interés
@@ -389,12 +389,11 @@ if __name__ == "__main__":
 
     # -------------------------------------------------------------------------
     # OPCIÓN A: Carga completa (todos los sujetos)
-    # Descomentá esta línea para producción:
-    # df = cargar_dataset(DATA_DIR)
+    df = cargar_dataset(DATA_DIR)
 
     # OPCIÓN B: Carga de prueba (primeros N sujetos, más rápido)
     # Útil para verificar que el parsing funciona antes de cargar todo.
-    df = cargar_dataset(DATA_DIR)
+    # df = cargar_dataset(DATA_DIR, max_sujetos=5)
     # -------------------------------------------------------------------------
 
     # Resumen del dataset

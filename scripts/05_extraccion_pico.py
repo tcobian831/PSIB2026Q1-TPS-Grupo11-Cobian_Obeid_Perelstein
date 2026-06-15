@@ -116,7 +116,7 @@ def extraer_metricas_ventana(senal, m_ini, m_fin):
     idx = int(np.argmax(seg))
     maximo = float(seg[idx])
     latencia = float((idx + m_ini) / FS * 1000)
-    auc = float(np.trapz(seg, dx=1000.0 / FS))
+    auc = float(np.trapezoid(seg, dx=1000.0 / FS))
     return media, maximo, latencia, auc
 
 

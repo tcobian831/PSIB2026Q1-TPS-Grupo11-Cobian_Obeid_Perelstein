@@ -57,7 +57,7 @@ Salida:   outputs/eeg_PE_homogeneo.parquet
           outputs/tabla_snr_comparacion.csv
           outputs/figura_GA_comparacion.png
           outputs/figura_snr_comparacion.png
-          outputs/sujetos_seleccionados.csv   (registro de qué 45 alcohólicos)
+          outputs/sujetos_seleccionados.csv   (registro de qué 45 alcohólicos se tomaron)
 
 Uso:
     Correr desde la carpeta scripts/
@@ -196,7 +196,7 @@ def promedio_homogeneo(X: np.ndarray) -> np.ndarray:
 def estimar_amplitudes(X: np.ndarray) -> np.ndarray:
     """
     Estima las amplitudes relativas a_i proyectando cada trial sobre el
-    promedio ordinario normalizado (diapositiva 11 de clase):
+    promedio ordinario normalizado (como vimos en clase):
 
         x̄   = (1/M) Σ x_i
         a_i = <x_i, x̄> / <x̄, x̄>
@@ -215,7 +215,7 @@ def promedio_inhomogeneo(X: np.ndarray) -> np.ndarray:
     """
     Promedio inhomogéneo — amplitud variable, varianza de ruido constante.
 
-    Pasos (diapositivas de clase):
+    Pasos (como en clase):
         1. x̄ = promedio ordinario
         2. a_i = <x_i, x̄> / <x̄, x̄>   (amplitudes relativas)
         3. w   = a / (aᵀa)
@@ -251,7 +251,7 @@ def snr_ensamble(X: np.ndarray, pesos: np.ndarray = None) -> float:
           (la parte coherente [señal] se cancela; queda solo ruido)
         - SNR = var(s_avg) / var(e)
 
-    Esta definición viene directamente de las diapositivas de clase:
+    Esta definición viene directamente de la clase:
     SNR = P(señal) / P(ruido), donde estimamos ambas a partir de los
     subensambles.
 
@@ -308,7 +308,7 @@ def calcular_PE_individual(df: pd.DataFrame):
     """
     Para cada combinación sujeto × canal × condición:
         - Calcula el PE homogéneo e inhomogéneo
-        - Calcula la SNR de cada método (definición correcta)
+        - Calcula la SNR de cada método
 
     Retorna:
         pe_hom:  DataFrame con los PE homogéneos
