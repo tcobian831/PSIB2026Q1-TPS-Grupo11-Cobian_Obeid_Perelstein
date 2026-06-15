@@ -13,11 +13,8 @@ Proposito:
  
     H1 (principal): Los controles tienen mayor amplitud del VMP que los
         alcoholicos en la region temporooccipital.
-        → Confirmada: 16/16 tests significativos (p < 0.001).
  
     H2 (secundaria): El efecto es mas pronunciado en hemisferio derecho.
-        → Parcialmente confirmada: leve dominancia derecha en P8/PO8 y
-          TP8, pero bilateral en T8. Difiere de Zhang et al. (1997).
  
     METODO PRINCIPAL: promedio homogeneo.
     VENTANA PRIMARIA: 220-260 ms (c240, Zhang et al. 1997).

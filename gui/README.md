@@ -47,11 +47,8 @@ python -m gui.app
 - **Métrica principal = MEDIA en ventana c240** (no el máximo): media ± SEM por
   grupo, diferencia, Cohen's d y p-Welch (una cola, C>A) **recalculados en vivo**
   sobre la cohorte del slider.
-- **Referencia oficial (Script 06):** los mismos contrastes sobre la muestra
-  completa 77 vs 45, con `p(FDR)`. En el slider a 77 ambos coinciden.
 - **SNR (mediana hom / inh)** de `tabla_snr_comparacion.csv` (cohorte de
-  referencia 45+45), con la nota honesta sobre la posible **circularidad** del
-  inhomogéneo.
+  referencia 45+45).
 - **Secundarios** (máximo, latencia, AUC, media c320) claramente etiquetados.
 
 ## Solución de problemas
@@ -63,15 +60,16 @@ python -m gui.app
   `plotting.py`). Si lo ves al integrar este código en otro script, exportá esa
   variable o importá PySide6 antes que pyqtgraph.
 
-## Módulos
 
+
+## Módulos
 ```
 gui/
-  config.py       constantes (canales, ventanas, SEED, paleta, rutas)
-  data_loader.py  carga + validación de outputs/ (error claro si falta algo)
-  averaging.py    igualar_grupos + Grand Average  (réplica Script 04 v2)
-  stats.py        Cohen's d + Welch una cola + SNR (réplica Scripts 05/06)
-  plotting.py     widget pyqtgraph (hover µV/ms, banda SEM, sombreados)
-  widgets.py      sidebar + KPI cards
-  app.py          ventana principal, tema oscuro, cableado
+  config.py       constantes de configuración: canales, ventanas, colores, rutas y SEED
+  data_loader.py  carga y validación de archivos desde outputs/
+  averaging.py    cálculo de Grand Average desde los PE individuales ya generados
+  stats.py        métricas descriptivas: media c240, SEM, diferencia entre grupos y SNR
+  plotting.py     gráfico interactivo de Grand Average, ventanas c240/c320, cursor y picos
+  widgets.py      controles laterales y tarjetas de resultados
+  app.py          ventana principal e integración de la interfaz
 ```
