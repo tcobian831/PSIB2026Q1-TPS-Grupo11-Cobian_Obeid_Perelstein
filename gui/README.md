@@ -45,7 +45,7 @@ python -m gui.app
 ## Panel de KPIs
 
 - **Métrica principal = MEDIA en ventana c240** (no el máximo): media ± SEM por
-  grupo, diferencia, Cohen's d y p-Welch (una cola, C>A) **recalculados en vivo**
+  grupo y diferencia **recalculados en vivo**
   sobre la cohorte del slider.
 - **SNR (mediana hom / inh)** de `tabla_snr_comparacion.csv` (cohorte de
   referencia 45+45).

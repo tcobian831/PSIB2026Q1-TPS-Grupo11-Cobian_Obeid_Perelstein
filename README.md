@@ -319,7 +319,7 @@ Semilla:      semilla de la selección aleatoria de alcohólicos (default 42).
 
 ```text
 Grand Average control (azul) vs alcohólico (rojo).
-Banda de SD entre sujetos.
+Banda de SEM entre sujetos.
 Ventanas c240 (220–260 ms) y c320 (290–340 ms) sombreadas.
 Hover con crosshair: tiempo (ms) y valor µV de cada grupo + diferencia (C−A).
 Marcador del pico del promedio (ventana amplia 200–400 ms, solo visual).
