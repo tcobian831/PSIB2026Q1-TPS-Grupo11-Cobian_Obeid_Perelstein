@@ -49,7 +49,7 @@ REQUERIDOS = {
     "estadistica": (
         "tabla_estadistica.csv",
         "scripts/06_estadistica.py",
-        "Comparación descriptiva entre grupos (media, SD y diferencia).",
+        "Comparación descriptiva entre grupos (media, SEM y diferencia).",
     ),
 }
 

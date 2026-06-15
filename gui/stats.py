@@ -2,10 +2,12 @@
 stats.py — Métricas descriptivas para el panel de KPIs.
 
 Réplica de las fórmulas descriptivas del Script 06:
-  - media ± SD por grupo y diferencia control - alcohólico, en la ventana c240.
+  - media ± SEM por grupo y diferencia control - alcohólico, en la ventana c240.
+    (SEM = SD/√n entre sujetos, igual que la banda de los Grand Average y el
+     resto de las figuras de los módulos.)
 
 Política HÍBRIDA (elegida con el usuario):
-  - KPI EN VIVO: se recalcula media_c240 ± SD sobre la cohorte actual del slider
+  - KPI EN VIVO: se recalcula media_c240 ± SEM sobre la cohorte actual del slider
     (n_alc + 45 ctrl) a partir de eeg_c240_extraido.csv, para que coincida con el
     Grand Average mostrado.
     (Verificado: a n=77 reproduce tabla_estadistica.csv a precisión de máquina.)
@@ -39,9 +41,9 @@ class KpiVivo:
     n_alcoholic: int
     # Métrica principal: media en ventana c240 (220-260 ms)
     control_media: float
-    control_sd: float
+    control_sem: float
     alcoholic_media: float
-    alcoholic_sd: float
+    alcoholic_sem: float
     diferencia: float          # control - alcohólico
     # Secundarios (medias por grupo) — claramente etiquetados como tales
     control_max: float
@@ -54,11 +56,13 @@ class KpiVivo:
     alcoholic_media_c320: float
 
 
-def _media_sd(vals: np.ndarray) -> tuple[float, float]:
+def _media_sem(vals: np.ndarray) -> tuple[float, float]:
+    """Media y error estándar de la media (SEM = SD/√n) entre sujetos."""
     if len(vals) == 0:
         return float("nan"), float("nan")
-    sd = vals.std(ddof=1) if len(vals) > 1 else float("nan")
-    return float(vals.mean()), float(sd)
+    n = len(vals)
+    sem = vals.std(ddof=1) / np.sqrt(n) if n > 1 else float("nan")
+    return float(vals.mean()), float(sem)
 
 
 def kpi_en_vivo(
@@ -84,8 +88,8 @@ def kpi_en_vivo(
     c_media = ctrl["media_c240"].dropna().to_numpy()
     a_media = alc["media_c240"].dropna().to_numpy()
 
-    mc, sc = _media_sd(c_media)
-    ma, sa = _media_sd(a_media)
+    mc, sc = _media_sem(c_media)
+    ma, sa = _media_sem(a_media)
 
     def media_de(df, col):
         v = df[col].dropna().to_numpy()
@@ -98,9 +102,9 @@ def kpi_en_vivo(
         n_control=len(c_media),
         n_alcoholic=len(a_media),
         control_media=mc,
-        control_sd=sc,
+        control_sem=sc,
         alcoholic_media=ma,
-        alcoholic_sd=sa,
+        alcoholic_sem=sa,
         diferencia=mc - ma,
         control_max=media_de(ctrl, "max_c240"),
         alcoholic_max=media_de(alc, "max_c240"),
@@ -120,9 +124,9 @@ def kpi_en_vivo(
 class KpiOficial:
     disponible: bool
     control_media: float = float("nan")
-    control_sd: float = float("nan")
+    control_sem: float = float("nan")
     alcoholic_media: float = float("nan")
-    alcoholic_sd: float = float("nan")
+    alcoholic_sem: float = float("nan")
     diferencia: float = float("nan")
     n_control: int = 0
     n_alcoholic: int = 0
@@ -148,15 +152,19 @@ def kpi_oficial(
     if fila.empty:
         return KpiOficial(disponible=False)
     r = fila.iloc[0]
+    nc = int(r["n_control"])
+    na = int(r["n_alcoholic"])
+    # El CSV guarda SD entre sujetos; lo convertimos a SEM = SD/√n para ser
+    # consistentes con la banda de los Grand Average y el resto de las figuras.
     return KpiOficial(
         disponible=True,
         control_media=float(r["control_media"]),
-        control_sd=float(r["control_sd"]),
+        control_sem=float(r["control_sd"]) / np.sqrt(nc) if nc > 1 else float("nan"),
         alcoholic_media=float(r["alcoholic_media"]),
-        alcoholic_sd=float(r["alcoholic_sd"]),
+        alcoholic_sem=float(r["alcoholic_sd"]) / np.sqrt(na) if na > 1 else float("nan"),
         diferencia=float(r["diferencia"]),
-        n_control=int(r["n_control"]),
-        n_alcoholic=int(r["n_alcoholic"]),
+        n_control=nc,
+        n_alcoholic=na,
     )
 
 

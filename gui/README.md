@@ -44,7 +44,7 @@ python -m gui.app
 
 ## Panel de KPIs
 
-- **Métrica principal = MEDIA en ventana c240** (no el máximo): media ± SD por
+- **Métrica principal = MEDIA en ventana c240** (no el máximo): media ± SEM por
   grupo, diferencia, Cohen's d y p-Welch (una cola, C>A) **recalculados en vivo**
   sobre la cohorte del slider.
 - **Referencia oficial (Script 06):** los mismos contrastes sobre la muestra

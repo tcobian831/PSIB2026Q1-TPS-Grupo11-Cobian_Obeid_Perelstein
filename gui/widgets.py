@@ -11,7 +11,7 @@ Sidebar (panel lateral fijo):
 
 Panel de KPIs (sobre el gráfico):
   • Métrica PRINCIPAL = media en ventana c240 (no el máximo).
-  • media ± SD por grupo y diferencia control - alcohólico (en vivo).
+  • media ± SEM por grupo y diferencia control - alcohólico (en vivo).
   • SNR (homogéneo / inhomogéneo) con nota honesta sobre la circularidad.
   • Referencia oficial del Script 06 (muestra completa 77 vs 45) y secundarios.
 """
@@ -291,12 +291,12 @@ class StatsPanel(QtWidgets.QWidget):
         # --- tarjeta métrica principal ---------------------------------------
         self.card_ctrl.set(
             f"{fmt_signed(vivo.control_media)} µV",
-            f"± {fmt(vivo.control_sd)} · n={vivo.n_control}",
+            f"± {fmt(vivo.control_sem)} SEM · n={vivo.n_control}",
             color=config.COLOR_CONTROL,
         )
         self.card_alc.set(
             f"{fmt_signed(vivo.alcoholic_media)} µV",
-            f"± {fmt(vivo.alcoholic_sd)} · n={vivo.n_alcoholic}",
+            f"± {fmt(vivo.alcoholic_sem)} SEM · n={vivo.n_alcoholic}",
             color=config.COLOR_ALCOHOLIC,
         )
         self.card_dif.set(
@@ -320,9 +320,9 @@ class StatsPanel(QtWidgets.QWidget):
                 f"{oficial.n_alcoholic} alcohólicos vs {oficial.n_control} "
                 f"controles):</b> "
                 f"Control {fmt_signed(oficial.control_media)} ± "
-                f"{fmt(oficial.control_sd)} µV · "
+                f"{fmt(oficial.control_sem)} µV (SEM) · "
                 f"Alcohólico {fmt_signed(oficial.alcoholic_media)} ± "
-                f"{fmt(oficial.alcoholic_sd)} µV · "
+                f"{fmt(oficial.alcoholic_sem)} µV (SEM) · "
                 f"diferencia {fmt_signed(oficial.diferencia)} µV"
             )
         else:
